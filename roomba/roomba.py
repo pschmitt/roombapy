@@ -441,6 +441,9 @@ class Roomba(object):
     def on_log(self, mosq, obj, level, string):
         self.log.debug(string)
 
+    def set_client(self, client):
+        self.client = client
+
     def set_mqtt_client(self, mqttc=None, brokerFeedback=""):
         self.mqttc = mqttc
         if self.mqttc is not None:

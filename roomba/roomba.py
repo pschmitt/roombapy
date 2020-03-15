@@ -439,7 +439,7 @@ class Roomba:
         if not HAVE_PIL:  # can't draw a map without PIL!
             return False
 
-        if Image.PILLOW_VERSION < "4.1.1":
+        if hasattr(Image, 'PILLOW_VERSION') and Image.PILLOW_VERSION < "4.1.1":
             print(
                 "WARNING: PIL version is %s, this is not the latest! you "
                 "can get bad memory leaks with old versions of PIL"

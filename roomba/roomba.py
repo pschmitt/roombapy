@@ -56,6 +56,12 @@ class RoombaInfo:
     def __str__(self) -> str:
         return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])
 
+    def __hash__(self) -> int:
+        return hash(self.mac)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, RoombaInfo) and self.mac == o.mac
+
 
 class Roomba:
     """
@@ -114,7 +120,7 @@ class Roomba:
         19: "Undocking issue",
         20: "Docking issue",
         21: "Navigation problem",
-        22: "Navigation problem", 
+        22: "Navigation problem",
         23: "Battery issue",
         24: "Navigation problem",
         25: "Reboot required",
@@ -151,13 +157,13 @@ class Roomba:
     }
 
     def __init__(
-        self,
-        address=None,
-        blid=None,
-        password=None,
-        continuous=True,
-        delay=1,
-        cert_name=None
+            self,
+            address=None,
+            blid=None,
+            password=None,
+            continuous=True,
+            delay=1,
+            cert_name=None
     ):
         """
         address is the IP address of the Roomba, the continuous flag enables a
@@ -376,9 +382,9 @@ class Roomba:
         """
         for k, v in merge_dct.items():
             if (
-                k in dct
-                and isinstance(dct[k], dict)
-                and isinstance(merge_dct[k], Mapping)
+                    k in dct
+                    and isinstance(dct[k], dict)
+                    and isinstance(merge_dct[k], Mapping)
             ):
                 self.dict_merge(dct[k], merge_dct[k])
             else:
@@ -397,9 +403,9 @@ class Roomba:
             # order), else return as is...
             json_data = json.loads(
                 payload.decode("utf-8")
-                .replace(":nan", ":NaN")
-                .replace(":inf", ":Infinity")
-                .replace(":-inf", ":-Infinity"),
+                    .replace(":nan", ":NaN")
+                    .replace(":inf", ":Infinity")
+                    .replace(":-inf", ":-Infinity"),
                 object_pairs_hook=OrderedDict,
             )
             # if it's not a dictionary, probably just a number
@@ -531,80 +537,80 @@ class Roomba:
         #  deal with "bin full" timeout on mission
         try:
             if (
-                self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
-                == "none"
-                and self.cleanMissionStatus_phase == "charge"
-                and (
+                    self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
+                    == "none"
+                    and self.cleanMissionStatus_phase == "charge"
+                    and (
                     self.current_state == self.states["pause"]
                     or self.current_state == self.states["recharge"]
-                )
+            )
             ):
                 self.current_state = self.states["cancelled"]
         except KeyError:
             pass
 
         if (
-            self.current_state == self.states["charge"]
-            and self.cleanMissionStatus_phase == "run"
+                self.current_state == self.states["charge"]
+                and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["new"]
         elif (
-            self.current_state == self.states["run"]
-            and self.cleanMissionStatus_phase == "hmMidMsn"
+                self.current_state == self.states["run"]
+                and self.cleanMissionStatus_phase == "hmMidMsn"
         ):
             self.current_state = self.states["dock"]
         elif (
-            self.current_state == self.states["dock"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["dock"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-            self.current_state == self.states["recharge"]
-            and self.cleanMissionStatus_phase == "charge"
-            and self.bin_full
+                self.current_state == self.states["recharge"]
+                and self.cleanMissionStatus_phase == "charge"
+                and self.bin_full
         ):
             self.current_state = self.states["pause"]
         elif (
-            self.current_state == self.states["run"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["run"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-            self.current_state == self.states["recharge"]
-            and self.cleanMissionStatus_phase == "run"
+                self.current_state == self.states["recharge"]
+                and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["pause"]
         elif (
-            self.current_state == self.states["pause"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["pause"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["pause"]
             # so that we will draw map and can update recharge time
             current_mission = None
         elif (
-            self.current_state == self.states["charge"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["charge"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             # so that we will draw map and can update charge status
             current_mission = None
         elif (
-            self.current_state == self.states["stop"]
-            or self.current_state == self.states["pause"]
+                self.current_state == self.states["stop"]
+                or self.current_state == self.states["pause"]
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = self.states["cancelled"]
         elif (
-            self.current_state == self.states["hmUsrDock"]
-            or self.current_state == self.states["cancelled"]
+                self.current_state == self.states["hmUsrDock"]
+                or self.current_state == self.states["cancelled"]
         ) and self.cleanMissionStatus_phase == "charge":
             self.current_state = self.states["dockend"]
         elif (
-            self.current_state == self.states["hmPostMsn"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["hmPostMsn"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["dockend"]
         elif (
-            self.current_state == self.states["dockend"]
-            and self.cleanMissionStatus_phase == "charge"
+                self.current_state == self.states["dockend"]
+                and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["charge"]
 

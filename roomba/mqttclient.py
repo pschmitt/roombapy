@@ -9,15 +9,13 @@ class RoombaMQTTClient:
     port = None
     blid = None
     password = None
-    cert_path = None
     log = None
     was_connected = False
 
-    def __init__(self, address, blid, password, cert_path=None, port=8883):
+    def __init__(self, address, blid, password, port=8883):
         self.address = address
         self.blid = blid
         self.password = password
-        self.cert_path = cert_path
         self.port = port
         self.log = logging.getLogger(__name__)
         self.mqtt_client = self._get_mqtt_client()
@@ -69,16 +67,9 @@ class RoombaMQTTClient:
         mqtt_client = mqtt.Client(client_id=self.blid)
         mqtt_client.username_pw_set(username=self.blid, password=self.password)
 
-        if not self.cert_path:
-            return mqtt_client
-
-        if not os.path.isfile(self.cert_path):
-            raise Exception("can't find certificate on path = " + self.cert_path)
-
         self.log.debug("Setting TLS certificate")
         try:
             mqtt_client.tls_set(
-                ca_certs=self.cert_path,
                 cert_reqs=ssl.CERT_NONE,
                 tls_version=ssl.PROTOCOL_TLS,
                 ciphers='DEFAULT@SECLEVEL=1')

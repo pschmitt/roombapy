@@ -205,6 +205,7 @@ class Roomba:
         self.client = self._get_client(address, blid, password)
         self._thread = threading.Thread(target=self.periodic_connection)
         self.on_message_callbacks = []
+        self.error_message = None
 
     def register_on_message_callback(self, callback):
         self.on_message_callbacks.append(callback)
@@ -380,9 +381,9 @@ class Roomba:
         """
         for k, v in merge_dct.items():
             if (
-                    k in dct
-                    and isinstance(dct[k], dict)
-                    and isinstance(merge_dct[k], Mapping)
+                k in dct
+                and isinstance(dct[k], dict)
+                and isinstance(merge_dct[k], Mapping)
             ):
                 self.dict_merge(dct[k], merge_dct[k])
             else:
@@ -401,9 +402,9 @@ class Roomba:
             # order), else return as is...
             json_data = json.loads(
                 payload.decode("utf-8")
-                    .replace(":nan", ":NaN")
-                    .replace(":inf", ":Infinity")
-                    .replace(":-inf", ":-Infinity"),
+                       .replace(":nan", ":NaN")
+                       .replace(":inf", ":Infinity")
+                       .replace(":-inf", ":-Infinity"),
                 object_pairs_hook=OrderedDict,
             )
             # if it's not a dictionary, probably just a number
@@ -535,13 +536,10 @@ class Roomba:
         #  deal with "bin full" timeout on mission
         try:
             if (
-                    self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
-                    == "none"
-                    and self.cleanMissionStatus_phase == "charge"
-                    and (
-                    self.current_state == self.states["pause"]
-                    or self.current_state == self.states["recharge"]
-                )
+                self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
+                == "none"
+                and self.cleanMissionStatus_phase == "charge"
+                and (self.current_state == self.states["pause"] or self.current_state == self.states["recharge"])
             ):
                 self.current_state = self.states["cancelled"]
         except KeyError:

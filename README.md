@@ -16,7 +16,7 @@ Supports Python 3.6, 3.7 (thanks to pschmitt for adding Python 3 compatibility).
 
 To get password from Roomba type in console:
 ```
-$> roomba-password <ip adress is optional>
+$> roomba-password <ip>
 ```
 It will find your Roomba in local network, then follow the instructions in console to get password.
 If IP address not provided password will be request for auto discovered robot. 

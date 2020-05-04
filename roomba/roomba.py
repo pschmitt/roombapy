@@ -32,6 +32,37 @@ class RoombaConnectionError(Exception):
     pass
 
 
+class RoombaInfo:
+    hostname = None
+    firmware = None
+    ip = None
+    mac = None
+    robot_name = None
+    sku = None
+    capabilities = None
+    blid = None
+    password = None
+
+    def __init__(self, hostname, robot_name, ip, mac, firmware, sku, capabilities):
+        self.hostname = hostname
+        self.firmware = firmware
+        self.ip = ip
+        self.mac = mac
+        self.robot_name = robot_name
+        self.sku = sku
+        self.capabilities = capabilities
+        self.blid = hostname.split('-')[1]
+
+    def __str__(self) -> str:
+        return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])
+
+    def __hash__(self) -> int:
+        return hash(self.mac)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, RoombaInfo) and self.mac == o.mac
+
+
 class Roomba:
     """
     This is a Class for Roomba 900 series WiFi connected Vacuum cleaners
@@ -126,13 +157,12 @@ class Roomba:
     }
 
     def __init__(
-            self,
-            address=None,
-            blid=None,
-            password=None,
-            continuous=True,
-            delay=1,
-            cert_name=None
+        self,
+        address=None,
+        blid=None,
+        password=None,
+        continuous=True,
+        delay=1
     ):
         """
         address is the IP address of the Roomba, the continuous flag enables a
@@ -170,19 +200,19 @@ class Roomba:
         self.master_state = {}  # all info from roomba stored here
         self.time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
-        self.client = self._get_client(address, blid, password, cert_name)
+        self.client = self._get_client(address, blid, password)
         self._thread = threading.Thread(target=self.periodic_connection)
         self.on_message_callbacks = []
+        self.error_message = None
 
     def register_on_message_callback(self, callback):
         self.on_message_callbacks.append(callback)
 
-    def _get_client(self, address, blid, password, cert_path):
+    def _get_client(self, address, blid, password):
         client = RoombaMQTTClient(
             address=address,
             blid=blid,
-            password=password,
-            cert_path=cert_path)
+            password=password)
         client.set_on_message(self.on_message)
         client.set_on_connect(self.on_connect)
         client.set_on_subscribe(self.on_subscribe)
@@ -355,9 +385,9 @@ class Roomba:
             # order), else return as is...
             json_data = json.loads(
                 payload.decode("utf-8")
-                .replace(":nan", ":NaN")
-                .replace(":inf", ":Infinity")
-                .replace(":-inf", ":-Infinity"),
+                       .replace(":nan", ":NaN")
+                       .replace(":inf", ":Infinity")
+                       .replace(":-inf", ":-Infinity"),
                 object_pairs_hook=OrderedDict,
             )
             # if it's not a dictionary, probably just a number
@@ -412,6 +442,13 @@ class Roomba:
                     self.co_ords["x"] = v
                 if k == "bin_full":
                     self.bin_full = v
+                if k == "cleanMissionStatus_error":
+                    try:
+                        self.error_message = self._ErrorMessages[v]
+                    except KeyError as e:
+                        self.log.warning("Error looking up Roomba error " "message: %s", e)
+                        self.error_message = "Unknown Error number: %d" % v
+                    self.publish("error_message", self.error_message)
                 if k == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (
                         self.cleanMissionStatus_phase
@@ -476,13 +513,10 @@ class Roomba:
         #  deal with "bin full" timeout on mission
         try:
             if (
-                    self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
-                    == "none"
-                    and self.cleanMissionStatus_phase == "charge"
-                    and (
-                    self.current_state == self.states["pause"]
-                    or self.current_state == self.states["recharge"]
-            )
+                self.master_state["state"]["reported"]["cleanMissionStatus"]["mssnM"]
+                == "none"
+                and self.cleanMissionStatus_phase == "charge"
+                and (self.current_state == self.states["pause"] or self.current_state == self.states["recharge"])
             ):
                 self.current_state = self.states["cancelled"]
         except KeyError:

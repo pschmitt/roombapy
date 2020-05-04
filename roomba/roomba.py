@@ -203,6 +203,7 @@ class Roomba:
         self._thread = threading.Thread(target=self.periodic_connection)
         self.on_message_callbacks = []
         self.error_message = None
+        self.client_error = None
 
     def register_on_message_callback(self, callback):
         self.on_message_callbacks.append(callback)
@@ -267,6 +268,7 @@ class Roomba:
 
     def on_connect(self, error):
         self.log.info("Connecting to Roomba %s", self.address)
+        self.client_error = error
         if error is not None:
             self.log.error("Roomba %s connection error, code %s", self.address, error)
             return
@@ -276,6 +278,7 @@ class Roomba:
 
     def on_disconnect(self, error):
         self.roomba_connected = False
+        self.client_error = error
         if error is not None:
             self.log.warning("Unexpectedly disconnected from Roomba %s, code %s", self.address, error)
             return

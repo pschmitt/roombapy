@@ -523,67 +523,67 @@ class Roomba:
             pass
 
         if (
-                self.current_state == self.states["charge"]
-                and self.cleanMissionStatus_phase == "run"
+            self.current_state == self.states["charge"]
+            and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["new"]
         elif (
-                self.current_state == self.states["run"]
-                and self.cleanMissionStatus_phase == "hmMidMsn"
+            self.current_state == self.states["run"]
+            and self.cleanMissionStatus_phase == "hmMidMsn"
         ):
             self.current_state = self.states["dock"]
         elif (
-                self.current_state == self.states["dock"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["dock"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-                self.current_state == self.states["recharge"]
-                and self.cleanMissionStatus_phase == "charge"
-                and self.bin_full
+            self.current_state == self.states["recharge"]
+            and self.cleanMissionStatus_phase == "charge"
+            and self.bin_full
         ):
             self.current_state = self.states["pause"]
         elif (
-                self.current_state == self.states["run"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["run"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-                self.current_state == self.states["recharge"]
-                and self.cleanMissionStatus_phase == "run"
+            self.current_state == self.states["recharge"]
+            and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["pause"]
         elif (
-                self.current_state == self.states["pause"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["pause"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["pause"]
             # so that we will draw map and can update recharge time
             current_mission = None
         elif (
-                self.current_state == self.states["charge"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["charge"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             # so that we will draw map and can update charge status
             current_mission = None
         elif (
-                self.current_state == self.states["stop"]
-                or self.current_state == self.states["pause"]
+            self.current_state == self.states["stop"]
+            or self.current_state == self.states["pause"]
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = self.states["cancelled"]
         elif (
-                self.current_state == self.states["hmUsrDock"]
-                or self.current_state == self.states["cancelled"]
+            self.current_state == self.states["hmUsrDock"]
+            or self.current_state == self.states["cancelled"]
         ) and self.cleanMissionStatus_phase == "charge":
             self.current_state = self.states["dockend"]
         elif (
-                self.current_state == self.states["hmPostMsn"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["hmPostMsn"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["dockend"]
         elif (
-                self.current_state == self.states["dockend"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["dockend"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["charge"]
 

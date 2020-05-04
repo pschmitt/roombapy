@@ -19,7 +19,7 @@ if you don't have OpenCV
 from collections.abc import Mapping
 from collections import OrderedDict
 from roomba.mqttclient import RoombaMQTTClient
-import datetime
+from datetime import datetime
 import json
 import logging
 import threading
@@ -185,7 +185,6 @@ class Roomba:
         self.stop_connection = False
         self.periodic_connection_running = False
         self.topic = '#'
-        self.brokerFeedback = ''
         self.exclude = ''
         self.delay = delay
         self.periodic_connection_duration = 10
@@ -215,7 +214,6 @@ class Roomba:
             password=password)
         client.set_on_message(self.on_message)
         client.set_on_connect(self.on_connect)
-        client.set_on_subscribe(self.on_subscribe)
         client.set_on_disconnect(self.on_disconnect)
         return client
 
@@ -268,11 +266,10 @@ class Roomba:
         self.periodic_connection_running = False
 
     def on_connect(self, error):
-        self.log.info("Connected to Roomba %s", self.address)
+        self.log.info("Connecting to Roomba %s", self.address)
         if error is not None:
-            self.log.error("Roomba Connected with result code %s", error)
-            self.log.error("Please make sure your blid and password are correct %s", self.address)
-            raise Exception("Failure in on_connect")
+            self.log.error("Roomba %s connection error, code %s", self.address, error)
+            return
 
         self.roomba_connected = True
         self.client.subscribe(self.topic)
@@ -280,7 +277,7 @@ class Roomba:
     def on_disconnect(self, error):
         self.roomba_connected = False
         if error is not None:
-            self.log.warning("Unexpectedly disconnected from Roomba %s! - reconnecting", self.address)
+            self.log.warning("Unexpectedly disconnected from Roomba %s, code %s", self.address, error)
             return
 
         self.log.info("Disconnected from Roomba %s", self.address)
@@ -311,9 +308,6 @@ class Roomba:
         for callback in self.on_message_callbacks:
             callback(json_data)
 
-    def on_subscribe(self, mosq, obj, mid, granted_qos):
-        self.log.debug("Subscribed: %s %s", str(mid), str(granted_qos))
-
     def send_command(self, command, params=None):
         if params is None:
             params = {}
@@ -321,7 +315,7 @@ class Roomba:
         self.log.debug("Send command: %s", command)
         roomba_command = {
             "command": command,
-            "time": self.to_timestamp(datetime.datetime.now()),
+            "time": datetime.timestamp(datetime.now()),
             "initiator": "localApp"
         }
         roomba_command.update(params)
@@ -347,10 +341,6 @@ class Roomba:
 
     def publish(self, topic, message):
         pass
-
-    def to_timestamp(self, dt):
-        td = dt - datetime.datetime(1970, 1, 1)
-        return int(td.total_seconds())
 
     def dict_merge(self, dct, merge_dct):
         """

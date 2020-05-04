@@ -157,13 +157,12 @@ class Roomba:
     }
 
     def __init__(
-            self,
-            address=None,
-            blid=None,
-            password=None,
-            continuous=True,
-            delay=1,
-            cert_name=None
+        self,
+        address=None,
+        blid=None,
+        password=None,
+        continuous=True,
+        delay=1
     ):
         """
         address is the IP address of the Roomba, the continuous flag enables a
@@ -203,19 +202,18 @@ class Roomba:
         self.master_state = {}  # all info from roomba stored here
         self.time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
-        self.client = self._get_client(address, blid, password, cert_name)
+        self.client = self._get_client(address, blid, password)
         self._thread = threading.Thread(target=self.periodic_connection)
         self.on_message_callbacks = []
 
     def register_on_message_callback(self, callback):
         self.on_message_callbacks.append(callback)
 
-    def _get_client(self, address, blid, password, cert_path):
+    def _get_client(self, address, blid, password):
         client = RoombaMQTTClient(
             address=address,
             blid=blid,
-            password=password,
-            cert_path=cert_path)
+            password=password)
         client.set_on_message(self.on_message)
         client.set_on_connect(self.on_connect)
         client.set_on_publish(self.on_publish)
@@ -466,11 +464,11 @@ class Roomba:
                     self.bin_full = v
                 if k == "cleanMissionStatus_error":
                     try:
-                        error_message = self._ErrorMessages[v]
+                        self.error_message = self._ErrorMessages[v]
                     except KeyError as e:
                         self.log.warning("Error looking up Roomba error " "message: %s", e)
-                        error_message = "Unknown Error number: %d" % v
-                    self.publish("error_message", error_message)
+                        self.error_message = "Unknown Error number: %d" % v
+                    self.publish("error_message", self.error_message)
                 if k == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (
                         self.cleanMissionStatus_phase
@@ -543,74 +541,74 @@ class Roomba:
                     and (
                     self.current_state == self.states["pause"]
                     or self.current_state == self.states["recharge"]
-            )
+                )
             ):
                 self.current_state = self.states["cancelled"]
         except KeyError:
             pass
 
         if (
-                self.current_state == self.states["charge"]
-                and self.cleanMissionStatus_phase == "run"
+            self.current_state == self.states["charge"]
+            and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["new"]
         elif (
-                self.current_state == self.states["run"]
-                and self.cleanMissionStatus_phase == "hmMidMsn"
+            self.current_state == self.states["run"]
+            and self.cleanMissionStatus_phase == "hmMidMsn"
         ):
             self.current_state = self.states["dock"]
         elif (
-                self.current_state == self.states["dock"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["dock"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-                self.current_state == self.states["recharge"]
-                and self.cleanMissionStatus_phase == "charge"
-                and self.bin_full
+            self.current_state == self.states["recharge"]
+            and self.cleanMissionStatus_phase == "charge"
+            and self.bin_full
         ):
             self.current_state = self.states["pause"]
         elif (
-                self.current_state == self.states["run"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["run"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["recharge"]
         elif (
-                self.current_state == self.states["recharge"]
-                and self.cleanMissionStatus_phase == "run"
+            self.current_state == self.states["recharge"]
+            and self.cleanMissionStatus_phase == "run"
         ):
             self.current_state = self.states["pause"]
         elif (
-                self.current_state == self.states["pause"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["pause"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["pause"]
             # so that we will draw map and can update recharge time
             current_mission = None
         elif (
-                self.current_state == self.states["charge"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["charge"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             # so that we will draw map and can update charge status
             current_mission = None
         elif (
-                self.current_state == self.states["stop"]
-                or self.current_state == self.states["pause"]
+            self.current_state == self.states["stop"]
+            or self.current_state == self.states["pause"]
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = self.states["cancelled"]
         elif (
-                self.current_state == self.states["hmUsrDock"]
-                or self.current_state == self.states["cancelled"]
+            self.current_state == self.states["hmUsrDock"]
+            or self.current_state == self.states["cancelled"]
         ) and self.cleanMissionStatus_phase == "charge":
             self.current_state = self.states["dockend"]
         elif (
-                self.current_state == self.states["hmPostMsn"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["hmPostMsn"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["dockend"]
         elif (
-                self.current_state == self.states["dockend"]
-                and self.cleanMissionStatus_phase == "charge"
+            self.current_state == self.states["dockend"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = self.states["charge"]
 

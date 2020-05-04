@@ -52,7 +52,7 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         # when
         await self.start_broker(broker, event_loop)
         is_connected = await self.roomba_connect(roomba, event_loop)
-        await self.roomba_disconnect(roomba)
+        await self.roomba_disconnect(roomba, event_loop)
         await self.stop_broker(broker, event_loop)
 
         # then

@@ -1,6 +1,5 @@
 import logging
 import ssl
-import os.path
 from enum import Enum
 import paho.mqtt.client as mqtt
 

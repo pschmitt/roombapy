@@ -97,6 +97,7 @@ class Roomba:
     }
 
     # From http://homesupport.irobot.com/app/answers/detail/a_id/9024/~/roomba-900-error-messages
+    # https://homesupport.irobot.com/app/answers/detail/a_id/21127/kw/charging%20error
     _ErrorMessages = {
         0: "None",
         1: "Left wheel off floor",
@@ -147,13 +148,36 @@ class Roomba:
         47: "Reboot required",
         48: "Path blocked",
         52: "Pad required attention",
+        53: "Software update required",
         65: "Hardware problem detected",
         66: "Low memory",
         68: "Hardware problem detected",
         73: "Pad type changed",
         74: "Max area reached",
         75: "Navigation problem",
-        76: "Hardware problem detected"
+        76: "Hardware problem detected",
+        88: "Back-up refused",
+        89: "Mission runtime too long",
+        101: "Battery isn't connected",
+        102: "Charging error",
+        103: "Charging error",
+        104: "No charge current",
+        105: "Charging current too low",
+        106: "Battery too warm",
+        107: "Battery temperature incorrect",
+        108: "Battery communication failure",
+        109: "Battery error",
+        110: "Battery cell imbalance",
+        111: "Battery communication failure",
+        112: "Invalid charging load",
+        114: "Internal battery failure",
+        115: "Cell failure during charging",
+        116: "Charging error of Home Base",
+        118: "Battery communication failure",
+        119: "Charging timeout",
+        120: "Battery not initialized",
+        122: "Charging system error",
+        123: "Battery not initialized",
     }
 
     def __init__(
@@ -202,6 +226,7 @@ class Roomba:
         self.client = self._get_client(address, blid, password)
         self._thread = threading.Thread(target=self.periodic_connection)
         self.on_message_callbacks = []
+        self.error_code = None
         self.error_message = None
         self.client_error = None
 
@@ -437,9 +462,10 @@ class Roomba:
                     self.bin_full = v
                 if k == "cleanMissionStatus_error":
                     try:
+                        self.error_code = v
                         self.error_message = self._ErrorMessages[v]
                     except KeyError as e:
-                        self.log.warning("Error looking up Roomba error " "message: %s", e)
+                        self.log.warning("Error looking up Roomba error message: %s", e)
                         self.error_message = "Unknown Error number: %d" % v
                     self.publish("error_message", self.error_message)
                 if k == "cleanMissionStatus_phase":

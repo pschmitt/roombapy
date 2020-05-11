@@ -429,16 +429,16 @@ class Roomba:
         topic name strings are expressely converted to strings to avoid unicode
         representations
         """
-        for k, v in state.items():
-            if isinstance(v, dict):
+        for key, value in state.items():
+            if isinstance(value, dict):
                 if prefix is None:
-                    self.decode_topics(v, k)
+                    self.decode_topics(value, key)
                 else:
-                    self.decode_topics(v, prefix + "_" + k)
+                    self.decode_topics(value, prefix + "_" + key)
             else:
-                if isinstance(v, list):
+                if isinstance(value, list):
                     newlist = []
-                    for i in v:
+                    for i in value:
                         if isinstance(i, dict):
                             for ki, vi in i.items():
                                 newlist.append((str(ki), vi))
@@ -446,33 +446,33 @@ class Roomba:
                             if isinstance(i, str):
                                 i = str(i)
                             newlist.append(i)
-                    v = newlist
+                    value = newlist
                 if prefix is not None:
-                    k = prefix + "_" + k
+                    key = prefix + "_" + key
                 # all data starts with this, so it's redundant
-                k = k.replace("state_reported_", "")
+                key = key.replace("state_reported_", "")
                 # save variables for drawing map
-                if k == "pose_theta":
-                    self.co_ords["theta"] = v
-                if k == "pose_point_x":  # x and y are reversed...
-                    self.co_ords["y"] = v
-                if k == "pose_point_y":
-                    self.co_ords["x"] = v
-                if k == "bin_full":
-                    self.bin_full = v
-                if k == "cleanMissionStatus_error":
+                if key == "pose_theta":
+                    self.co_ords["theta"] = value
+                if key == "pose_point_x":  # x and y are reversed...
+                    self.co_ords["y"] = value
+                if key == "pose_point_y":
+                    self.co_ords["x"] = value
+                if key == "bin_full":
+                    self.bin_full = value
+                if key == "cleanMissionStatus_error":
                     try:
-                        self.error_code = v
-                        self.error_message = self._ErrorMessages[v]
+                        self.error_code = value
+                        self.error_message = self._ErrorMessages[value]
                     except KeyError as e:
                         self.log.warning("Error looking up Roomba error message: %s", e)
-                        self.error_message = "Unknown Error number: %d" % v
+                        self.error_message = "Unknown Error number: %d" % value
                     self.publish("error_message", self.error_message)
-                if k == "cleanMissionStatus_phase":
+                if key == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (
                         self.cleanMissionStatus_phase
                     )
-                    self.cleanMissionStatus_phase = v
+                    self.cleanMissionStatus_phase = value
 
         if prefix is None:
             self.update_state_machine()

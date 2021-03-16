@@ -274,9 +274,9 @@ class Roomba:
             # order), else return as is...
             json_data = json.loads(
                 payload.decode("utf-8")
-                .replace(":nan", ":NaN")
-                .replace(":inf", ":Infinity")
-                .replace(":-inf", ":-Infinity"),
+                    .replace(":nan", ":NaN")
+                    .replace(":inf", ":Infinity")
+                    .replace(":-inf", ":-Infinity"),
                 object_pairs_hook=OrderedDict,
             )
             # if it's not a dictionary, probably just a number
@@ -354,17 +354,6 @@ class Roomba:
         """
         Roomba progresses through states (phases).
 
-        Current identified states are:
-        ""              : program started up, no state yet
-        "run"           : running on a Cleaning Mission
-        "hmUsrDock"     : returning to Dock
-        "hmMidMsn"      : need to recharge
-        "hmPostMsn"     : mission completed
-        "charge"        : chargeing
-        "stuck"         : Roomba is stuck
-        "stop"          : Stopped
-        "pause"         : paused
-
         Normal Sequence is "" -> charge -> run -> hmPostMsn -> charge
         Mid mission recharge is "" -> charge -> run -> hmMidMsn -> charge
                                    -> run -> hmPostMsn -> charge
@@ -390,9 +379,9 @@ class Roomba:
                 == "none"
                 and self.cleanMissionStatus_phase == "charge"
                 and (
-                    self.current_state == ROOMBA_STATES["pause"]
-                    or self.current_state == ROOMBA_STATES["recharge"]
-                )
+                self.current_state == ROOMBA_STATES["pause"]
+                or self.current_state == ROOMBA_STATES["recharge"]
+            )
             ):
                 self.current_state = ROOMBA_STATES["cancelled"]
         except KeyError:
@@ -464,6 +453,13 @@ class Roomba:
             self.current_state = ROOMBA_STATES["charge"]
 
         else:
+            if self.cleanMissionStatus_phase not in ROOMBA_STATES:
+                self.log.error(
+                    "Can't find state %s in predefined Roomba states, "
+                    "please create a ticket in "
+                    "https://github.com/pschmitt/roombapy repository",
+                    self.cleanMissionStatus_phase
+                )
             self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
 
         if new_state is not None:

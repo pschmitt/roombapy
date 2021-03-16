@@ -106,5 +106,6 @@ ROOMBA_STATES = {
     "pause": "Paused",
     "hmPostMsn": "End Mission",
     "evac": "Emptying Bin",
+    "chargingerror": "Base Unplugged",
     "": None,
 }

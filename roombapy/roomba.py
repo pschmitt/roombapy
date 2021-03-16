@@ -458,7 +458,7 @@ class Roomba:
                     "Can't find state %s in predefined Roomba states, "
                     "please create a ticket in "
                     "https://github.com/pschmitt/roombapy repository",
-                    self.cleanMissionStatus_phase
+                    self.cleanMissionStatus_phase,
                 )
             self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
 

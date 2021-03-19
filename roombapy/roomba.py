@@ -456,11 +456,13 @@ class Roomba:
             if self.cleanMissionStatus_phase not in ROOMBA_STATES:
                 self.log.error(
                     "Can't find state %s in predefined Roomba states, "
-                    "please create a ticket in "
-                    "https://github.com/pschmitt/roombapy repository",
+                    "please create a new issue: "
+                    "https://github.com/pschmitt/roombapy/issues/new",
                     self.cleanMissionStatus_phase,
                 )
-            self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
+                self.current_state = None
+            else:
+                self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
 
         if new_state is not None:
             self.current_state = ROOMBA_STATES[new_state]

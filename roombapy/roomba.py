@@ -462,7 +462,9 @@ class Roomba:
                 )
                 self.current_state = None
             else:
-                self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
+                self.current_state = ROOMBA_STATES[
+                    self.cleanMissionStatus_phase
+                ]
 
         if new_state is not None:
             self.current_state = ROOMBA_STATES[new_state]

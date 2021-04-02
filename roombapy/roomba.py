@@ -80,7 +80,7 @@ class Roomba:
         self.master_state = {}  # all info from roomba stored here
         self.time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
-        self._thread = threading.Thread(target=self.periodic_connection)
+        self._thread = threading.Thread(target=self.periodic_connection, name="roombapy")
         self.on_message_callbacks = []
         self.on_disconnect_callbacks = []
         self.error_code = None

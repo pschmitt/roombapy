@@ -24,7 +24,7 @@ python = ">=3.7,<4.0"
 paho-mqtt = "^1.5.1"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.3"
+pytest = "^6.2.4"
 pytest-asyncio = "^0.15.1"
 black = "^21.4b2"
 isort = "^5.8.0"

@@ -111,10 +111,11 @@ class RoombaRemoteClient:
             "Connected to Roomba %s, response code = %s", self.address, rc
         )
         connection_error = MQTT_ERROR_MESSAGES.get(rc)
+        # If response code(rc) is 0 then connection was succesfull.
         if rc != 0 and connection_error is None:
             self.log.warning(
-                f"Unknown error encounterd: ID={rc}."
-                "Please report this to: https://github.com/pschmitt/roombapy/issues/new"
+                f"Unknown connection error: ID={rc}."
+                "Kindly use https://github.com/pschmitt/roombapy/issues/new"
             )
             connection_error = "UNKNOWN_ERROR"
         if self.on_connect is not None:
@@ -125,10 +126,11 @@ class RoombaRemoteClient:
             "Disconnected from Roomba %s, response code = %s", self.address, rc
         )
         connection_error = MQTT_ERROR_MESSAGES.get(rc)
+        # If response code(rc) is 0 then connection was succesfull.
         if rc != 0 and connection_error is None:
             self.log.warning(
-                f"Unknown error encounterd: ID={rc}."
-                "Please report this to: https://github.com/pschmitt/roombapy/issues/new"
+                f"Unknown disconnection error: ID={rc}."
+                "Kindly use https://github.com/pschmitt/roombapy/issues/new"
             )
             connection_error = "UNKNOWN_ERROR"
         if self.on_disconnect is not None:

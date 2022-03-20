@@ -8,7 +8,7 @@ MQTT_ERROR_MESSAGES = {
     7: "The connection was lost",
 }
 
-# iRobot_6.3.1-release.apk / res/values-en-rGB/strings.xml 
+# iRobot_6.3.1-release.apk / res/values-en-rGB/strings.xml
 ROOMBA_ERROR_MESSAGES = {
     1: "Left wheel off floor",
     2: "Main brushes stuck",

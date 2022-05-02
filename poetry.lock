@@ -1,6 +1,6 @@
 [[package]]
 name = "amqtt"
-version = "0.10.0"
+version = "0.10.1"
 description = "MQTT client/broker using Python asyncio"
 category = "dev"
 optional = false
@@ -11,7 +11,7 @@ docopt = ">=0.6.0,<0.7.0"
 passlib = ">=1.7.0,<2.0.0"
 PyYAML = ">=5.4.0,<6.0.0"
 transitions = ">=0.8.0,<0.9.0"
-websockets = ">=9.0,<10.0"
+websockets = ">=9.0"
 
 [package.extras]
 ci = ["coveralls (>=3.0.1,<4.0.0)"]
@@ -374,12 +374,12 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<4.0"
-content-hash = "e5d9a9b6465c9eaa88db4be3c3c59eced95dcb195659f8e1a4c7405c3e926de5"
+content-hash = "8ab60c51cf3805c73f82212fc4caa09f2cc0798eef910b78c0452ba2906f3ab6"
 
 [metadata.files]
 amqtt = [
-    {file = "amqtt-0.10.0-py3-none-any.whl", hash = "sha256:1ae2ff300fa4bd38251f989f1698b4b07a799a76f5562967fde28dbc155d5679"},
-    {file = "amqtt-0.10.0.tar.gz", hash = "sha256:a0b4d3fda60bc650a52aba73c4dd6b788a1928995f5ff5fb6119119416f670f9"},
+    {file = "amqtt-0.10.1-py3-none-any.whl", hash = "sha256:42d20a4315c5796b6bfb89c06a4bcd8c4a6ab4d06f25865c82437e6acf3a5c07"},
+    {file = "amqtt-0.10.1.tar.gz", hash = "sha256:45b38acc960068713aa0b5162e67b057c22cfddc2bbe7648d2169e60080fd10b"},
 ]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},

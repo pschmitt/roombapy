@@ -29,7 +29,7 @@ pytest-asyncio = "^0.18.3"
 black = "^22.3"
 isort = "^5.10.1"
 flake8 = "^4.0.1"
-amqtt = "^0.10.0"
+amqtt = "^0.10.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -26,7 +26,7 @@ paho-mqtt = "^1.5.1"
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
 pytest-asyncio = "^0.18.3"
-black = "^22.3"
+black = "^22.6"
 isort = "^5.10.1"
 flake8 = "^4.0.1"
 amqtt = "^0.10.1"

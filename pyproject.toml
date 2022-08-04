@@ -28,7 +28,7 @@ pytest = "^7.1.2"
 pytest-asyncio = "^0.19.0"
 black = "^22.6"
 isort = "^5.10.1"
-flake8 = "^5.0.3"
+flake8 = "^5.0.4"
 amqtt = "^0.10.1"
 
 [build-system]

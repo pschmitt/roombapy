@@ -27,7 +27,7 @@ paho-mqtt = "^1.5.1"
 pytest = "^7.2.0"
 pytest-asyncio = "^0.20.3"
 black = "^22.12"
-isort = "^5.11.3"
+isort = "^5.11.4"
 flake8 = "^5.0.4"
 amqtt = "^0.10.1"
 

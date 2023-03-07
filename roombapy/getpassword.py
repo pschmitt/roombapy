@@ -83,4 +83,5 @@ def _get_socket():
         ssl_version=ssl.PROTOCOL_TLS,
         ciphers="DEFAULT@SECLEVEL=1",
     )
+    ssl_socket.context.options |= 0x4  # set OP_LEGACY_SERVER_CONNECT
     return ssl_socket

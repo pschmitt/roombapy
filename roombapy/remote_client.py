@@ -103,6 +103,7 @@ class RoombaRemoteClient:
             ssl_context.load_default_certs()
             mqtt_client.tls_set_context(ssl_context)
         mqtt_client.tls_insecure_set(True)
+        mqtt_client._ssl_context.options |= 0x4  # set OP_LEGACY_SERVER_CONNECT
 
         return mqtt_client
 

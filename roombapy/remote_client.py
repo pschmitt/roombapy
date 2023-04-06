@@ -1,8 +1,8 @@
 import logging
 import ssl
+from functools import cache
 
 import paho.mqtt.client as mqtt
-from functools import cache
 
 from roombapy.const import MQTT_ERROR_MESSAGES
 

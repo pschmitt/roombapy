@@ -287,7 +287,9 @@ class Roomba:
                 return json_data, dict(json_data)
             json_data_string = "\n".join(
                 (indent * " ") + i
-                for i in (orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode()).splitlines()
+                for i in (
+                    orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode()
+                ).splitlines()
             )
 
             formatted_data = "Decoded JSON: \n%s" % json_data_string

@@ -288,7 +288,9 @@ class Roomba:
             json_data_string = "\n".join(
                 (indent * " ") + i
                 for i in (
-                    orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode()
+                    orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode(
+                        "utf-8"
+                    )
                 ).splitlines()
             )
 

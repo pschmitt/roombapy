@@ -273,14 +273,14 @@ class Roomba:
 
         json_data = None
         try:
-            # if it's json data, decode it (use OrderedDict to preserve keys
-            # order), else return as is...
+            # if it's json data, decode it. OrderedDict is no longer
+            # needed since python 3.6 and later guarantees dict
+            # insertion order
             json_data = orjson.loads(
                 payload.decode("utf-8")
                 .replace(":nan", ":NaN")
                 .replace(":inf", ":Infinity")
                 .replace(":-inf", ":-Infinity"),
-                object_pairs_hook=OrderedDict,
             )
             # if it's not a dictionary, probably just a number
             if not isinstance(json_data, dict):

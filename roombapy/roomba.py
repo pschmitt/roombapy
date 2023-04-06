@@ -16,13 +16,14 @@ files Nick Waterton 11th July  2017  V1.2.1: Quick (untested) fix for room
 outlines if you don't have OpenCV
 """
 
-import json
 import logging
 import threading
 import time
 from collections import OrderedDict
 from collections.abc import Mapping
 from datetime import datetime
+
+import orjson
 
 from roombapy.const import ROOMBA_ERROR_MESSAGES, ROOMBA_STATES
 
@@ -221,7 +222,7 @@ class Roomba:
         }
         roomba_command.update(params)
 
-        str_command = json.dumps(roomba_command)
+        str_command = orjson.dumps(roomba_command).decode("utf-8")
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
@@ -236,7 +237,7 @@ class Roomba:
                 val = False
         tmp = {preference: val}
         roomba_command = {"state": tmp}
-        str_command = json.dumps(roomba_command)
+        str_command = orjson.dumps(roomba_command).decode("utf-8")
         self.log.debug("Publishing Roomba Setting : %s" % str_command)
         self.remote_client.publish("delta", str_command)
 
@@ -274,7 +275,7 @@ class Roomba:
         try:
             # if it's json data, decode it (use OrderedDict to preserve keys
             # order), else return as is...
-            json_data = json.loads(
+            json_data = orjson.loads(
                 payload.decode("utf-8")
                 .replace(":nan", ":NaN")
                 .replace(":inf", ":Infinity")
@@ -286,7 +287,7 @@ class Roomba:
                 return json_data, dict(json_data)
             json_data_string = "\n".join(
                 (indent * " ") + i
-                for i in (json.dumps(json_data, indent=2)).splitlines()
+                for i in (orjson.dumps(json_data, option=orjson.OPT_INDENT_2).decode()).splitlines()
             )
 
             formatted_data = "Decoded JSON: \n%s" % json_data_string

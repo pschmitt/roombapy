@@ -1,6 +1,7 @@
-import json
 import logging
 import socket
+
+import orjson
 
 from roombapy.roomba_info import RoombaInfo
 
@@ -61,7 +62,7 @@ class RoombaDiscovery:
         if data == self.roomba_message:
             return False
 
-        json_response = json.loads(data)
+        json_response = orjson.loads(data)
         if (
             "Roomba" in json_response["hostname"]
             or "iRobot" in json_response["hostname"]
@@ -89,7 +90,7 @@ class RoombaDiscovery:
 
 
 def _decode_data(data):
-    json_response = json.loads(data)
+    json_response = orjson.loads(data)
     return RoombaInfo(
         hostname=json_response["hostname"],
         robot_name=json_response["robotname"],

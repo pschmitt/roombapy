@@ -2,10 +2,24 @@ import logging
 import ssl
 
 import paho.mqtt.client as mqtt
+from functools import cache
 
 from roombapy.const import MQTT_ERROR_MESSAGES
 
 MAX_CONNECTION_RETRIES = 3
+
+
+@cache
+def _generate_tls_context() -> ssl.SSLContext:
+    """Generate TLS context.
+
+    We only want to do this once ever because it's expensive.
+    """
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+    ssl_context.verify_mode = ssl.CERT_NONE
+    ssl_context.set_ciphers("DEFAULT:!DH")
+    ssl_context.load_default_certs()
+    return ssl_context
 
 
 class RoombaRemoteClient:
@@ -88,20 +102,9 @@ class RoombaRemoteClient:
         mqtt_client.on_disconnect = self._internal_on_disconnect
 
         self.log.debug("Setting TLS certificate")
-        try:
-            mqtt_client.tls_set(
-                cert_reqs=ssl.CERT_NONE,
-                tls_version=ssl.PROTOCOL_TLS,
-                ciphers="DEFAULT:!DH",
-            )
-        except ValueError:  # try V1.3 version
-            self.log.warning("TLS Setting failed - trying 1.3 version")
-            mqtt_client._ssl_context = None
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            ssl_context.verify_mode = ssl.CERT_NONE
-            ssl_context.set_ciphers("DEFAULT:!DH")
-            ssl_context.load_default_certs()
-            mqtt_client.tls_set_context(ssl_context)
+        mqtt_client._ssl_context = None
+        ssl_context = _generate_tls_context()
+        mqtt_client.tls_set_context(ssl_context)
         mqtt_client.tls_insecure_set(True)
         mqtt_client._ssl_context.options |= 0x4  # set OP_LEGACY_SERVER_CONNECT
 

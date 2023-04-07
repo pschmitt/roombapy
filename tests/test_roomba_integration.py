@@ -2,7 +2,7 @@ import asyncio
 import os
 
 import pytest
-from hbmqtt.broker import Broker
+from amqtt.broker import Broker
 
 from tests import abstract_test_roomba
 
@@ -39,10 +39,10 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         roomba = self.get_default_roomba()
 
         # when
-        await self.start_broker(broker, event_loop)
+        await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
         await self.roomba_disconnect(roomba, event_loop)
-        await self.stop_broker(broker, event_loop)
+        await self.stop_broker(broker)
 
         # then
         assert is_connected
@@ -53,29 +53,30 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         roomba = self.get_default_roomba(blid="wrong")
 
         # when
-        await self.start_broker(broker, event_loop)
+        await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
-        await self.stop_broker(broker, event_loop)
+
+        await self.stop_broker(broker)
 
         # then
         assert not is_connected
 
     async def roomba_connect(self, roomba, loop):
         await loop.run_in_executor(None, roomba.connect)
-        await asyncio.sleep(1, loop=loop)
+        await asyncio.sleep(1)
         return roomba.roomba_connected
 
     async def roomba_disconnect(self, roomba, loop):
         await loop.run_in_executor(None, roomba.disconnect)
 
-    async def start_broker(self, broker, loop):
+    async def start_broker(self, broker):
         await broker.start()
-        await asyncio.sleep(1, loop=loop)
+        await asyncio.sleep(1)
 
-    async def stop_broker(self, broker, loop):
+    async def stop_broker(self, broker):
         await broker.shutdown()
-        await asyncio.sleep(1, loop=loop)
+        await asyncio.sleep(1)
 
     @pytest.fixture
-    def broker(self, event_loop):
-        return Broker(BROKER_CONFIG, loop=event_loop)
+    def broker(self):
+        return Broker(BROKER_CONFIG)

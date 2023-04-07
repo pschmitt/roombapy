@@ -30,7 +30,9 @@ pytest-asyncio = "^0.21.0"
 black = "^23.3"
 isort = "^5.11.5"
 flake8 = "^5.0.4"
-amqtt = "^0.10.1"
+
+[tool.poetry.group.dev.dependencies]
+amqtt = {git = "https://github.com/Yakifo/amqtt", rev = "08028ebef86e7732d0abfa1a153647e7ac961be9"}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

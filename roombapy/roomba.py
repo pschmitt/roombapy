@@ -19,7 +19,6 @@ outlines if you don't have OpenCV
 import logging
 import threading
 import time
-from collections import OrderedDict
 from collections.abc import Mapping
 from datetime import datetime
 

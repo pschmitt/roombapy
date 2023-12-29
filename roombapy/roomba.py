@@ -221,7 +221,9 @@ class Roomba:
         }
         roomba_command.update(params)
 
-        str_command = orjson.dumps(roomba_command).decode("utf-8")
+        # params may contain non-string keys, so we need to use the orjson
+        # OPT_NON_STR_KEYS option
+        str_command = orjson.dumps(roomba_command, option=orjson.OPT_NON_STR_KEYS).decode("utf-8")
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 

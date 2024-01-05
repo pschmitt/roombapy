@@ -1,15 +1,15 @@
 import logging
 import ssl
-from functools import cache
+from functools import lru_cache
 
 import paho.mqtt.client as mqtt
 
-from roombapy.const import MQTT_ERROR_MESSAGES
+from .const import MQTT_ERROR_MESSAGES
 
 MAX_CONNECTION_RETRIES = 3
 
 
-@cache
+@lru_cache(maxsize=None)
 def _generate_tls_context() -> ssl.SSLContext:
     """Generate TLS context.
 
@@ -71,12 +71,15 @@ class RoombaRemoteClient:
                 self._open_mqtt_connection()
                 return True
             except Exception as e:
+                _last_error = "Can't connect to {}, error: {}".format(self.address, e)
                 self.log.error(
                     "Can't connect to %s, error: %s", self.address, e
                 )
             attempt += 1
 
-        self.log.error("Unable to connect to %s", self.address)
+        self.log.error("Client - Unable to connect to %s", self.address)
+        if self.on_connect is not None:
+            self.on_connect(_last_error)
         return False
 
     def disconnect(self):

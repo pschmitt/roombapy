@@ -113,6 +113,7 @@ class Roomba:
         self.time = time.time()  # save connection time
 
     def _connect(self):
+        self.client_error=None
         is_connected = self.remote_client.connect()
         if not is_connected:
             raise RoombaConnectionError(

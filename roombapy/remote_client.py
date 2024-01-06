@@ -71,12 +71,15 @@ class RoombaRemoteClient:
                 self._open_mqtt_connection()
                 return True
             except Exception as e:
+                _last_error = "Can't connect to {}, error: {}".format(self.address, e)
                 self.log.error(
                     "Can't connect to %s, error: %s", self.address, e
                 )
             attempt += 1
 
         self.log.error("Unable to connect to %s", self.address)
+        if self.on_connect is not None:
+            self.on_connect(_last_error)
         return False
 
     def disconnect(self):

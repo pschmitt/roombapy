@@ -24,7 +24,7 @@ from datetime import datetime
 
 import orjson
 
-from roombapy.const import ROOMBA_ERROR_MESSAGES, ROOMBA_STATES
+from .const import ROOMBA_ERROR_MESSAGES, ROOMBA_STATES
 
 MAX_CONNECTION_RETRIES = 3
 

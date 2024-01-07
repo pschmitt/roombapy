@@ -1,5 +1,5 @@
-from roombapy import Roomba
-from roombapy.remote_client import RoombaRemoteClient
+from . import Roomba
+from .remote_client import RoombaRemoteClient
 
 
 class RoombaFactory:

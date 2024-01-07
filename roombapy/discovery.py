@@ -3,7 +3,7 @@ import socket
 
 import orjson
 
-from roombapy.roomba_info import RoombaInfo
+from .roomba_info import RoombaInfo
 
 
 class RoombaDiscovery:

@@ -4,7 +4,7 @@ from functools import cache
 
 import paho.mqtt.client as mqtt
 
-from roombapy.const import MQTT_ERROR_MESSAGES
+from .const import MQTT_ERROR_MESSAGES
 
 MAX_CONNECTION_RETRIES = 3
 

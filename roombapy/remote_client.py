@@ -1,6 +1,6 @@
 import logging
 import ssl
-from functools import cache
+from functools import lru_cache
 
 import paho.mqtt.client as mqtt
 
@@ -9,7 +9,7 @@ from .const import MQTT_ERROR_MESSAGES
 MAX_CONNECTION_RETRIES = 3
 
 
-@cache
+@lru_cache(maxsize=None)
 def _generate_tls_context() -> ssl.SSLContext:
     """Generate TLS context.
 

@@ -29,7 +29,7 @@ jobs:
 
       - name: Create venv cache
         id: cache-venv
-        uses: actions/cache@v3.3.3
+        uses: actions/cache@v4.0.0
         with:
           path: ${{env.venv-path}}
           key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
@@ -59,7 +59,7 @@ jobs:
 
       - name: Create venv cache
         id: cache-venv
-        uses: actions/cache@v3.3.3
+        uses: actions/cache@v4.0.0
         with:
           path: ${{env.venv-path}}
           key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
@@ -89,7 +89,7 @@ jobs:
 
       - name: Create venv cache
         id: cache-venv
-        uses: actions/cache@v3.3.3
+        uses: actions/cache@v4.0.0
         with:
           path: ${{env.venv-path}}
           key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
@@ -124,7 +124,7 @@ jobs:
 
       - name: Create venv cache
         id: cache-venv
-        uses: actions/cache@v3.3.3
+        uses: actions/cache@v4.0.0
         with:
           path: ${{env.venv-path}}
           key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('poetry.lock') }}

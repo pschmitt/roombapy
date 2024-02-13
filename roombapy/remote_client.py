@@ -10,7 +10,7 @@ MAX_CONNECTION_RETRIES = 3
 
 
 @cache
-def _generate_tls_context() -> ssl.SSLContext:
+def generate_tls_context() -> ssl.SSLContext:
     """Generate TLS context.
 
     We only want to do this once ever because it's expensive.
@@ -108,10 +108,9 @@ class RoombaRemoteClient:
 
         self.log.debug("Setting TLS certificate")
         mqtt_client._ssl_context = None
-        ssl_context = _generate_tls_context()
+        ssl_context = generate_tls_context()
         mqtt_client.tls_set_context(ssl_context)
         mqtt_client.tls_insecure_set(True)
-        mqtt_client._ssl_context.options |= 0x4  # set OP_LEGACY_SERVER_CONNECT
 
         return mqtt_client
 

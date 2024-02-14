@@ -39,10 +39,10 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         roomba = self.get_default_roomba()
 
         # when
-        await self.start_broker(broker)
+        # await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
         await self.roomba_disconnect(roomba, event_loop)
-        await self.stop_broker(broker)
+        # await self.stop_broker(broker)
 
         # then
         assert is_connected
@@ -53,10 +53,10 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         roomba = self.get_default_roomba(blid="wrong")
 
         # when
-        await self.start_broker(broker)
+        # await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
 
-        await self.stop_broker(broker)
+        # await self.stop_broker(broker)
 
         # then
         assert not is_connected

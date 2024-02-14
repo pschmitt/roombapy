@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  black:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -26,84 +26,30 @@ jobs:
 
       - name: Install Poetry
         uses: snok/install-poetry@v1.3.4
-
-      - name: Create venv cache
-        id: cache-venv
-        uses: actions/cache@v4.0.0
         with:
-          path: ${{env.venv-path}}
-          key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-venv-
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install library
+        run: poetry install --no-interaction
+
+      - name: Run linters
         run: |
-          poetry install
-
-      - name: Black
-        run: |
-          poetry run black --config pyproject.toml --check --diff --verbose .
-
-  isort:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.4
-
-      - name: Create venv cache
-        id: cache-venv
-        uses: actions/cache@v4.0.0
-        with:
-          path: ${{env.venv-path}}
-          key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-venv-
-
-      - name: Install dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-        run: |
-          poetry install
-
-      - name: isort
-        run: |
-          poetry run isort --check --diff --verbose .
-
-  flake8:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.4
-
-      - name: Create venv cache
-        id: cache-venv
-        uses: actions/cache@v4.0.0
-        with:
-          path: ${{env.venv-path}}
-          key: ${{ runner.os }}-venv-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-venv-
-
-      - name: Install dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-        run: |
-          poetry install
-
-      - name: flake8
-        run: |
-          poetry run flake8 --config .flake8 --verbose --count .
+          source .venv/bin/activate
+          black --config pyproject.toml --check --diff --verbose .
+          isort --check --diff --verbose .
+          flake8 --config .flake8 --verbose --count .
 
   pytest:
     runs-on: ubuntu-latest
@@ -115,27 +61,33 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install Poetry
         uses: snok/install-poetry@v1.3.4
-
-      - name: Create venv cache
-        id: cache-venv
-        uses: actions/cache@v4.0.0
         with:
-          path: ${{env.venv-path}}
-          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.python-version }}-venv-
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-        run: |
-          poetry install
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Install library
+        run: poetry install --no-interaction
 
       - name: Run Pytest
         run: |
-          poetry run pytest --verbose
+          source .venv/bin/activate
+          pytest --verbose

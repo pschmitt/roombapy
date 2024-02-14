@@ -1,62 +1,30 @@
 import asyncio
-import os
 
 import pytest
-from amqtt.broker import Broker
 
 from tests import abstract_test_roomba
-
-BROKER_CONFIG = {
-    "listeners": {
-        "default": {
-            "type": "tcp",
-            "bind": "localhost:8883",
-            "max_connections": 10,
-            "ssl": "on",
-            "certfile": os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "test.crt"
-            ),
-            "keyfile": os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "test.key"
-            ),
-        },
-    },
-    "auth": {
-        "allow-anonymous": False,
-        "password-file": os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "passwd"
-        ),
-        "plugins": ["auth_file", "auth_anonymous"],
-    },
-    "topic-check": {"enabled": False},
-}
 
 
 class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
     @pytest.mark.asyncio
-    async def test_roomba_connect(self, broker, event_loop):
+    async def test_roomba_connect(self, event_loop):
         # given
         roomba = self.get_default_roomba()
 
         # when
-        # await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
         await self.roomba_disconnect(roomba, event_loop)
-        # await self.stop_broker(broker)
 
         # then
         assert is_connected
 
     @pytest.mark.asyncio
-    async def test_roomba_connect_error(self, broker, event_loop):
+    async def test_roomba_connect_error(self, event_loop):
         # given
         roomba = self.get_default_roomba(blid="wrong")
 
         # when
-        # await self.start_broker(broker)
         is_connected = await self.roomba_connect(roomba, event_loop)
-
-        # await self.stop_broker(broker)
 
         # then
         assert not is_connected
@@ -68,15 +36,3 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
 
     async def roomba_disconnect(self, roomba, loop):
         await loop.run_in_executor(None, roomba.disconnect)
-
-    async def start_broker(self, broker):
-        await broker.start()
-        await asyncio.sleep(1)
-
-    async def stop_broker(self, broker):
-        await broker.shutdown()
-        await asyncio.sleep(1)
-
-    @pytest.fixture
-    def broker(self):
-        return Broker(BROKER_CONFIG)

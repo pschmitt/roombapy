@@ -1,6 +1,6 @@
 import sys
 
-from roombapy import RoombaFactory
+from roombapy.roomba_factory import RoombaFactory
 from roombapy.discovery import RoombaDiscovery
 from roombapy.getpassword import RoombaPassword
 

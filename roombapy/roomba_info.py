@@ -26,7 +26,8 @@ class RoombaInfo(BaseModel):
             raise ValueError(f"unsupported model in hostname: {value}")
         return value
 
-    @computed_field
+    # NOTE: https://github.com/python/mypy/pull/16571
+    @computed_field  # type: ignore
     @cached_property
     def blid(self) -> str:
         return self.hostname.split("-")[1]

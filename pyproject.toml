@@ -31,6 +31,19 @@ pytest-asyncio = "^0.23"
 black = "^24.2"
 isort = "^5.13"
 flake8 = "^7.0"
+mypy = "^1.8"
+
+[tool.mypy]
+follow_imports = "normal"
+strict_optional = true
+#strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -13,8 +13,8 @@ class RoombaDiscovery:
     udp_port = 5678
     roomba_message = "irobotmcs"
     amount_of_broadcasted_messages = 5
-    server_socket = None
-    log = None
+    server_socket: socket.socket
+    log: logging.Logger
 
     def __init__(self):
         """Init discovery."""

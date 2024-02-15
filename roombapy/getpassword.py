@@ -10,13 +10,13 @@ from roombapy.remote_client import generate_tls_context
 class RoombaPassword:
     """Main class to get a password."""
 
-    roomba_ip = None
-    roomba_port = 8883
-    message = None
-    server_socket = None
-    log = None
+    roomba_ip: str
+    roomba_port: int = 8883
+    message: bytes
+    server_socket: socket.socket
+    log: logging.Logger
 
-    def __init__(self, roomba_ip):
+    def __init__(self, roomba_ip: str):
         """Init default values."""
         self.roomba_ip = roomba_ip
         self.message = bytes.fromhex("f005efcc3b2900")

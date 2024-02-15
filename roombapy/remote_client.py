@@ -3,6 +3,7 @@ import ssl
 from functools import cache
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
 
 from roombapy.const import MQTT_ERROR_MESSAGES
 
@@ -25,16 +26,16 @@ def generate_tls_context() -> ssl.SSLContext:
 
 
 class RoombaRemoteClient:
-    address = None
-    port = None
-    blid = None
-    password = None
-    log = None
-    was_connected = False
+    address: str
+    port: int
+    blid: str
+    password: str
+    log: logging.Logger
+    was_connected: bool = False
     on_connect = None
     on_disconnect = None
 
-    def __init__(self, address, blid, password, port=8883):
+    def __init__(self, address: str, blid: str, password: str, port: int = 8883):
         """Create mqtt client."""
         self.address = address
         self.blid = blid
@@ -100,7 +101,7 @@ class RoombaRemoteClient:
     def _get_mqtt_client(self):
         mqtt_client = mqtt.Client(
             client_id=self.blid,
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
+            callback_api_version=CallbackAPIVersion.VERSION1,
         )
         mqtt_client.username_pw_set(username=self.blid, password=self.password)
         mqtt_client.on_connect = self._internal_on_connect

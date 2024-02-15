@@ -53,7 +53,7 @@ class RoombaDiscovery:
                     "Received response: %s, address: %s", raw_response, addr
                 )
                 response = _decode_data(raw_response)
-                if response is None:
+                if not response:
                     continue
                 else:
                     return response

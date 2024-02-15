@@ -18,12 +18,12 @@ class RoombaInfo(BaseModel):
     @classmethod
     def hostname_validator(cls, value: str) -> str:
         if "-" not in value:
-            raise ValueError("hostname must contain a dash")
+            raise ValueError(f"hostname does not contain a dash: {value}")
         model_name, blid = value.split("-")
         if blid == "":
-            raise ValueError("empty blid")
-        if model_name not in {"Roomba", "iRobot"}:
-            raise ValueError("unsupported model in hostname")
+            raise ValueError(f"empty blid: {value}")
+        if model_name.lower() not in {"roomba", "irobot"}:
+            raise ValueError(f"unsupported model in hostname: {value}")
         return value
 
     @computed_field

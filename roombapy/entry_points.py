@@ -10,10 +10,10 @@ def discovery():
 
     roomba_discovery = RoombaDiscovery()
     if roomba_ip is not None:
-        print(roomba_discovery.find(roomba_ip))
+        print(roomba_discovery.get(roomba_ip))
         return
 
-    robots_info = roomba_discovery.find()
+    robots_info = roomba_discovery.get_all()
     for robot in robots_info:
         print(robot)
 

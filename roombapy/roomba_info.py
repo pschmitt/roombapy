@@ -11,7 +11,7 @@ class RoombaInfo(BaseModel):
     mac: str
     robot_name: str = Field(alias="robotname")
     sku: str
-    capabilities: Dict[str, str] = Field(alias="cap")
+    capabilities: Dict[str, int] = Field(alias="cap")
     password: Optional[str] = None
 
     @field_validator("hostname")

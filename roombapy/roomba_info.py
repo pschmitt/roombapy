@@ -1,40 +1,38 @@
-class RoombaInfo:
-    hostname = None
-    firmware = None
-    ip = None
-    mac = None
-    robot_name = None
-    sku = None
-    capabilities = None
-    blid = None
-    password = None
+from functools import cached_property
+from typing import Dict, Optional
 
-    def __init__(
-        self, hostname, robot_name, ip, mac, firmware, sku, capabilities
-    ):
-        """Create object with information about roomba."""
-        self.hostname = hostname
-        self.firmware = firmware
-        self.ip = ip
-        self.mac = mac
-        self.robot_name = robot_name
-        self.sku = sku
-        self.capabilities = capabilities
-        self.blid = hostname.split("-")[1]
+from pydantic import BaseModel, Field, computed_field, field_validator
 
-    def __str__(self) -> str:
-        """Nice output to console."""
-        return ", ".join(
-            [
-                "{key}={value}".format(key=key, value=self.__dict__.get(key))
-                for key in self.__dict__
-            ]
-        )
+
+class RoombaInfo(BaseModel):
+    hostname: str
+    firmware: str = Field(alias="sw")
+    ip: str
+    mac: str
+    robot_name: str = Field(alias="robotname")
+    sku: str
+    capabilities: Dict[str, str] = Field(alias="cap")
+    password: Optional[str] = None
+
+    @field_validator("hostname")
+    @classmethod
+    def hostname_validator(cls, value: str) -> str:
+        if "-" not in value:
+            raise ValueError("hostname must contain a dash")
+        model_name, blid = value.split("-")
+        if blid == "":
+            raise ValueError("empty blid")
+        if model_name not in {"Roomba", "iRobot"}:
+            raise ValueError("unsupported model in hostname")
+        return value
+
+    @computed_field
+    @cached_property
+    def blid(self) -> str:
+        return self.hostname.split("-")[1]
 
     def __hash__(self) -> int:
-        """Hashcode."""
         return hash(self.mac)
 
     def __eq__(self, o: object) -> bool:
-        """Equals."""
         return isinstance(o, RoombaInfo) and self.mac == o.mac

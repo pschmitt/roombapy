@@ -1,7 +1,8 @@
 import logging
 import socket
+from typing import Optional
 
-import orjson
+from pydantic import ValidationError
 
 from roombapy.roomba_info import RoombaInfo
 
@@ -51,25 +52,14 @@ class RoombaDiscovery:
                 self.log.debug(
                     "Received response: %s, address: %s", raw_response, addr
                 )
-                data = raw_response.decode()
-                if self._is_from_irobot(data):
-                    return _decode_data(data)
+                response = _decode_data(raw_response)
+                if response is None:
+                    continue
+                else:
+                    return response
         except socket.timeout:
             self.log.info("Socket timeout")
             return None
-
-    def _is_from_irobot(self, data):
-        if data == self.roomba_message:
-            return False
-
-        json_response = orjson.loads(data)
-        if (
-            "Roomba" in json_response["hostname"]
-            or "iRobot" in json_response["hostname"]
-        ):
-            return True
-
-        return False
 
     def _broadcast_message(self, amount):
         for i in range(amount):
@@ -89,17 +79,22 @@ class RoombaDiscovery:
         self.log.debug("Socket server started, port %s", self.udp_port)
 
 
-def _decode_data(data):
-    json_response = orjson.loads(data)
-    return RoombaInfo(
-        hostname=json_response["hostname"],
-        robot_name=json_response["robotname"],
-        ip=json_response["ip"],
-        mac=json_response["mac"],
-        firmware=json_response["sw"],
-        sku=json_response["sku"],
-        capabilities=json_response["cap"],
-    )
+def _decode_data(raw_response: bytes) -> Optional[RoombaInfo]:
+    try:
+        data = raw_response.decode()
+    except UnicodeDecodeError:
+        # Unknown ND response (routers, etc.)
+        return None
+
+    if data == RoombaDiscovery.roomba_message:
+        # Filter our own messages
+        return None
+
+    try:
+        return RoombaInfo.model_validate_json(data)
+    except ValidationError:
+        # Malformed json from robots
+        return None
 
 
 def _get_socket():

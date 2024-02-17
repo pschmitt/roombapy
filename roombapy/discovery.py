@@ -91,7 +91,7 @@ def _decode_data(raw_response: bytes) -> Optional[RoombaInfo]:
         return None
 
     try:
-        return RoombaInfo.model_validate_json(data)
+        return RoombaInfo.parse_raw(data)
     except ValidationError:
         # Malformed json from robots
         return None

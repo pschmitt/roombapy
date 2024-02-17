@@ -1,7 +1,11 @@
 from functools import cached_property
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+try:
+    from pydantic.v1 import BaseModel, Field, field_validator
+except ImportError:
+    from pydantic import BaseModel, Field
+    from pydantic import validator as field_validator
 
 
 class RoombaInfo(BaseModel):
@@ -26,10 +30,14 @@ class RoombaInfo(BaseModel):
             raise ValueError(f"unsupported model in hostname: {value}")
         return value
 
-    @computed_field
     @cached_property
     def blid(self) -> str:
         return self.hostname.split("-")[1]
+
+    class Config:
+        # NOTE: Used to ensure Pydantic v1 backwards compatibility
+        #       See https://github.com/samuelcolvin/pydantic/issues/1241
+        keep_untouched = (cached_property,)
 
     def __hash__(self) -> int:
         return hash(self.mac)

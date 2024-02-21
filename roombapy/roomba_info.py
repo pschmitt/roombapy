@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Optional
 
 try:
-    from pydantic.v1 import BaseModel, Field, field_validator
+    from pydantic.v1 import (  # type: ignore[attr-defined]
+        BaseModel,
+        Field,
+        field_validator,
+    )
 except ImportError:
-    from pydantic import BaseModel, Field
-    from pydantic import validator as field_validator
+    from pydantic import BaseModel, Field  # type: ignore[attr-defined]
+    from pydantic import (
+        validator as field_validator,  # type: ignore[attr-defined]
+    )
 
 
 class RoombaInfo(BaseModel):
@@ -18,7 +23,7 @@ class RoombaInfo(BaseModel):
     robot_name: str = Field(alias="robotname")
     sku: str
     capabilities: dict[str, int] = Field(alias="cap")
-    password: Optional[str] = None
+    password: str | None = None
 
     @field_validator("hostname")
     @classmethod

@@ -52,7 +52,6 @@ ignore = [
     "ANN205",
     "ANN201", # Return type
     "ANN401", # Opinioated warning on disallowing dynamically typed expressions
-    "BLE001",
     "B007",
     "C901",
     "D105",

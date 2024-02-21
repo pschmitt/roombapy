@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import socket
 from typing import Optional
@@ -66,7 +68,7 @@ class RoombaDiscovery:
             self.server_socket.sendto(
                 self.roomba_message.encode(), (self.udp_address, self.udp_port)
             )
-            self.log.debug("Broadcast message sent: " + str(i))
+            self.log.debug("Broadcast message sent: %s", i)
 
     def _send_message(self, udp_address):
         self.server_socket.sendto(

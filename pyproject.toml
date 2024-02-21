@@ -12,7 +12,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Networking"
 ]
-exclude = ["tests/*"]
+packages = [
+    { include = "roombapy" },
+]
 
 [tool.poetry.scripts]
 roomba-connect = "roombapy.entry_points:connect"
@@ -25,16 +27,67 @@ orjson = ">=3.9.13"
 paho-mqtt = ">=1.5.1,<3.0.0"
 pydantic = ">=1"
 
-[tool.poetry.dev-dependencies]
-black = "^24.2"
-flake8 = "^7.0"
-isort = "^5.13"
+[tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-asyncio = "^0.23"
+ruff = "^0.2.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
+[tool.ruff]
 line-length = 80
+
+[tool.ruff.lint]
+ignore = [
+    "ANN001", # Parameter type
+    "ANN101", # Self... explanatory
+    "ANN102", # cls... just as useless
+    "ANN202",
+    "ANN204", # init return type
+    "ANN205",
+    "ANN201", # Return type
+    "ANN401", # Opinioated warning on disallowing dynamically typed expressions
+    "ARG002",
+    "BLE001",
+    "B007",
+    "C901",
+    "D105",
+    "D106",
+    "D203", # Conflicts with other rules
+    "D404",
+    "D213", # Conflicts with other rules
+    "DTZ005",
+    "EM101",
+    "EM102",
+    "FBT002",
+    "FBT003",
+    "G002",
+    "G004",
+    "TRY002",
+    "TRY003",
+    "TRY300",
+    "TRY400",
+    "COM812", # Conflicts with other rules
+    "ISC001", # Conflicts with other rules
+    "D100", # documentation info, should be removed after fixes
+    "D101", # documentation info, should be removed after fixes
+    "D102", # documentation info, should be removed after fixes
+    "D103", # documentation info, should be removed after fixes
+    "PERF102",
+    "PLE1205",
+    "PLR2004", # Just annoying, not really useful
+    "PLR0912",
+    "PLR1714",
+    "PLW2901",
+    "RET507",
+    "SIM102",
+    "SLF001",
+    "T201",
+    "UP007",
+]
+select = ["ALL"]
+
+[tool.ruff.format]
+docstring-code-format = true

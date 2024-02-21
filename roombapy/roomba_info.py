@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from functools import cached_property
-from typing import Dict, Optional
+from typing import Optional
 
 try:
     from pydantic.v1 import BaseModel, Field, field_validator
@@ -15,7 +17,7 @@ class RoombaInfo(BaseModel):
     mac: str
     robot_name: str = Field(alias="robotname")
     sku: str
-    capabilities: Dict[str, int] = Field(alias="cap")
+    capabilities: dict[str, int] = Field(alias="cap")
     password: Optional[str] = None
 
     @field_validator("hostname")

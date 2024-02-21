@@ -3,9 +3,7 @@ from roombapy.remote_client import RoombaRemoteClient
 
 
 class RoombaFactory:
-    """
-    Allows you to create Roomba class to control your robot
-    """
+    """Allows you to create Roomba class to control your robot."""
 
     @staticmethod
     def create_roomba(

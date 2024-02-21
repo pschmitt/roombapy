@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
-"""
-Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
+"""Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
 
 Program to connect to Roomba 980 vacuum cleaner, dcode json, and forward to mqtt
 server.
@@ -32,12 +30,9 @@ MAX_CONNECTION_RETRIES = 3
 class RoombaConnectionError(Exception):
     """Roomba connection exception."""
 
-    pass
-
 
 class Roomba:
-    """
-    This is a Class for Roomba 900 series WiFi connected Vacuum cleaners.
+    """This is a Class for Roomba 900 series WiFi connected Vacuum cleaners.
 
     Requires firmware version 2.0 and above (not V1.0). Tested with Roomba 980
     username (blid) and password are required, and can be found using the
@@ -116,9 +111,7 @@ class Roomba:
         is_connected = self.remote_client.connect()
         if not is_connected:
             raise RoombaConnectionError(
-                "Unable to connect to Roomba at {}".format(
-                    self.remote_client.address
-                )
+                f"Unable to connect to Roomba at {self.remote_client.address}"
             )
         return is_connected
 
@@ -245,8 +238,7 @@ class Roomba:
         self.remote_client.publish("delta", str_command)
 
     def dict_merge(self, dct, merge_dct):
-        """
-        Recursive dict merge.
+        """Recursive dict merge.
 
         Inspired by :meth:``dict.update()``, instead
         of updating only top-level keys, dict_merge recurses down into dicts
@@ -267,8 +259,7 @@ class Roomba:
                 dct[k] = merge_dct[k]
 
     def decode_payload(self, topic, payload):
-        """
-        Format json for pretty printing.
+        """Format json for pretty printing.
 
         Returns string sutiable for logging, and a dict of the json data
         """
@@ -304,8 +295,7 @@ class Roomba:
         return formatted_data, dict(json_data)
 
     def decode_topics(self, state, prefix=None):
-        """
-        Decode json data dict and publish as individual topics.
+        """Decode json data dict and publish as individual topics.
 
         Publish to brokerFeedback/topic the keys are concatinated with _
         to make one unique topic name strings are expressely converted
@@ -361,8 +351,7 @@ class Roomba:
             self.update_state_machine()
 
     def update_state_machine(self, new_state=None):
-        """
-        Roomba progresses through states (phases).
+        """Roomba progresses through states (phases).
 
         Normal Sequence is "" -> charge -> run -> hmPostMsn -> charge
         Mid mission recharge is "" -> charge -> run -> hmMidMsn -> charge
@@ -378,7 +367,6 @@ class Roomba:
         Assume hmPostMsn -> charge = end of mission (finalize map)
         Anything else = continue with existing map
         """
-
         current_mission = self.current_state
 
         try:
@@ -447,13 +435,15 @@ class Roomba:
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = ROOMBA_STATES["cancelled"]
         elif (
-            self.current_state == ROOMBA_STATES["hmUsrDock"]
-            or self.current_state == ROOMBA_STATES["cancelled"]
-        ) and self.cleanMissionStatus_phase == "charge":
-            self.current_state = ROOMBA_STATES["dockend"]
-        elif (
-            self.current_state == ROOMBA_STATES["hmPostMsn"]
+            (
+                self.current_state == ROOMBA_STATES["hmUsrDock"]
+                or self.current_state == ROOMBA_STATES["cancelled"]
+            )
             and self.cleanMissionStatus_phase == "charge"
+            or (
+                self.current_state == ROOMBA_STATES["hmPostMsn"]
+                and self.cleanMissionStatus_phase == "charge"
+            )
         ):
             self.current_state = ROOMBA_STATES["dockend"]
         elif (
@@ -462,19 +452,16 @@ class Roomba:
         ):
             self.current_state = ROOMBA_STATES["charge"]
 
+        elif self.cleanMissionStatus_phase not in ROOMBA_STATES:
+            self.log.error(
+                "Can't find state %s in predefined Roomba states, "
+                "please create a new issue: "
+                "https://github.com/pschmitt/roombapy/issues/new",
+                self.cleanMissionStatus_phase,
+            )
+            self.current_state = None
         else:
-            if self.cleanMissionStatus_phase not in ROOMBA_STATES:
-                self.log.error(
-                    "Can't find state %s in predefined Roomba states, "
-                    "please create a new issue: "
-                    "https://github.com/pschmitt/roombapy/issues/new",
-                    self.cleanMissionStatus_phase,
-                )
-                self.current_state = None
-            else:
-                self.current_state = ROOMBA_STATES[
-                    self.cleanMissionStatus_phase
-                ]
+            self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
 
         if new_state is not None:
             self.current_state = ROOMBA_STATES[new_state]

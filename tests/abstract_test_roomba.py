@@ -1,4 +1,4 @@
-from roombapy import RoombaFactory
+from roombapy import Roomba, RoombaFactory
 
 ROOMBA_CONFIG = {
     "host": "127.0.0.1",
@@ -18,7 +18,7 @@ class AbstractTestRoomba:
         password=ROOMBA_CONFIG["password"],
         continuous=ROOMBA_CONFIG["continuous"],
         delay=ROOMBA_CONFIG["delay"],
-    ):
+    ) -> Roomba:
         return RoombaFactory.create_roomba(
             address=address,
             blid=blid,
@@ -33,8 +33,8 @@ class AbstractTestRoomba:
             pass
 
         message = Message
-        setattr(message, "topic", topic)
-        setattr(message, "payload", payload)
-        setattr(message, "qos", "qos")
+        message.topic = topic
+        message.payload = payload
+        message.qos = "qos"
 
         return message

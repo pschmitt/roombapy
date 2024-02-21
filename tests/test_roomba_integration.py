@@ -6,7 +6,7 @@ from tests import abstract_test_roomba
 
 
 class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio()
     async def test_roomba_connect(self, event_loop):
         # given
         roomba = self.get_default_roomba()
@@ -18,7 +18,7 @@ class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
         # then
         assert is_connected
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio()
     async def test_roomba_connect_error(self, event_loop):
         # given
         roomba = self.get_default_roomba(blid="wrong")

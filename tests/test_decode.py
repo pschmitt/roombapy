@@ -13,35 +13,35 @@ TEST_ROOMBA_INFO = """
 """
 
 
-def test_skip_garbage():
+def test_skip_garbage() -> None:
     assert _decode_data(b"\x0f\x00\xff\xf0") is None
 
 
-def test_skip_own_messages():
+def test_skip_own_messages() -> None:
     assert _decode_data(RoombaDiscovery.roomba_message.encode()) is None
 
 
-def test_skip_broken_json():
+def test_skip_broken_json() -> None:
     assert _decode_data(b'{"test": 1') is None
 
 
-def test_skip_unknown_json():
+def test_skip_unknown_json() -> None:
     assert _decode_data(b'{"test": 1}') is None
 
 
-def test_skip_unknown_hostname():
+def test_skip_unknown_hostname() -> None:
     assert _decode_data(b'{"hostname": "test"}') is None
     assert _decode_data(TEST_ROOMBA_INFO.encode()) is None
 
 
-def test_skip_hostnames_without_blid():
+def test_skip_hostnames_without_blid() -> None:
     decoded = _decode_data(
         TEST_ROOMBA_INFO.replace("hostname_placeholder", "iRobot-").encode()
     )
     assert decoded is None
 
 
-def test_allow_approved_hostnames():
+def test_allow_approved_hostnames() -> None:
     blid = "test"
     for hostname in [f"Roomba-{blid}", f"iRobot-{blid}"]:
         decoded = _decode_data(

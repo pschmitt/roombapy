@@ -2,6 +2,7 @@ name: CI
 
 env:
   venv-path: '.venv'
+  DEFAULT_PYTHON: "3.12"
 
 on:
   push:
@@ -13,43 +14,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  ruff:
+    name: Ruff
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v4.1.1
+      - name: 🏗 Set up Poetry
+        run: pipx install poetry
+      - name: 🏗 Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
+        uses: actions/setup-python@v5.0.0
         with:
-          python-version: "3.12"
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1.3.4
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install library
-        run: poetry install --no-interaction
-
-      - name: Run linters
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache: "poetry"
+      - name: 🏗 Install workflow dependencies
         run: |
-          source .venv/bin/activate
-          black --config pyproject.toml --check --diff --verbose .
-          isort --check --diff --verbose .
-          flake8 --config .flake8 --verbose --count .
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+      - name: 🏗 Install Python dependencies
+        run: poetry install --no-interaction
+      - name: 🚀 Run ruff linter
+        run: poetry run ruff check --output-format=github .
+      - name: 🚀 Run ruff formatter
+        run: poetry run ruff format --check .
 
   pytest:
     runs-on: ubuntu-latest

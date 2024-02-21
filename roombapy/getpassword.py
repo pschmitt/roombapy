@@ -68,7 +68,7 @@ class RoombaPassword:
         except socket.timeout:
             self.log.warning("Socket timeout")
             return None
-        except socket.error as e:
+        except OSError as e:
             self.log.debug("Socket error", e)
             return None
 

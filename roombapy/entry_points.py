@@ -2,7 +2,7 @@
 import logging
 import sys
 
-from roombapy import RoombaFactory
+from roombapy import RoombaConnectionError, RoombaFactory
 from roombapy.discovery import RoombaDiscovery
 from roombapy.getpassword import RoombaPassword
 
@@ -61,19 +61,28 @@ def connect():
         pass
 
 
+class ValidationError(Exception):
+    """Validation error."""
+
+    def __init__(self, *, field: str) -> None:
+        """Initialize the exception."""
+        super().__init__(f"{field} cannot be null")
+
+
 def _validate_ip(ip):
     if ip is None:
-        raise Exception("ip cannot be null")
+        raise ValidationError(field="IP")
 
 
 def _validate_password(ip):
     if ip is None:
-        raise Exception("password cannot be null")
+        raise ValidationError(field="Password")
 
 
 def _validate_roomba_info(roomba_info):
     if roomba_info is None:
-        raise Exception("cannot find roomba")
+        msg = "cannot find roomba"
+        raise RoombaConnectionError(msg)
 
 
 def _wait_for_input():

@@ -57,19 +57,11 @@ ignore = [
     "D203", # Conflicts with other rules
     "D213", # Conflicts with other rules
     "DTZ005",
-    "EM101",
-    "EM102",
     "FBT002",
-    "FBT003",
-    "TRY002",
-    "TRY003",
-    "TRY300",
-    "TRY400",
     "COM812", # Conflicts with other rules
     "ISC001", # Conflicts with other rules
     "PLR2004", # Just annoying, not really useful
     "PLR0912",
-    "SIM102",
 ]
 select = ["ALL"]
 

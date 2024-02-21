@@ -114,9 +114,8 @@ class Roomba:
     def _connect(self):
         is_connected = self.remote_client.connect()
         if not is_connected:
-            raise RoombaConnectionError(
-                f"Unable to connect to Roomba at {self.remote_client.address}"
-            )
+            msg = f"Unable to connect to Roomba at {self.remote_client.address}"
+            raise RoombaConnectionError(msg)
         return is_connected
 
     def disconnect(self):
@@ -180,9 +179,8 @@ class Roomba:
 
     def on_message(self, _mosq, _obj, msg):
         """On message callback."""
-        if self.exclude != "":
-            if self.exclude in msg.topic:
-                return
+        if self.exclude != "" and self.exclude in msg.topic:
+            return
 
         if self.indent == 0:
             self.master_indent = max(self.master_indent, len(msg.topic))

@@ -45,3 +45,12 @@ To test connection with iRobot:
 ```shell
 $ roomba-connect <ip> <password>
 ```
+
+## Development
+
+To improve your development experience, you can install pre-commit hooks via the following command.
+With every commit it will run a set of checks, making sure it meets the quality standards.
+
+```shell
+pre-commit install
+```

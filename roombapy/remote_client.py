@@ -107,7 +107,6 @@ class RoombaRemoteClient:
         mqtt_client.on_disconnect = self._internal_on_disconnect
 
         self.log.debug("Setting TLS certificate")
-        mqtt_client._ssl_context = None
         ssl_context = generate_tls_context()
         mqtt_client.tls_set_context(ssl_context)
         mqtt_client.tls_insecure_set(True)

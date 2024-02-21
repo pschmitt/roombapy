@@ -234,7 +234,7 @@ class Roomba:
         tmp = {preference: val}
         roomba_command = {"state": tmp}
         str_command = orjson.dumps(roomba_command).decode("utf-8")
-        self.log.debug("Publishing Roomba Setting : %s" % str_command)
+        self.log.debug("Publishing Roomba Setting : %s", str_command)
         self.remote_client.publish("delta", str_command)
 
     def dict_merge(self, dct, merge_dct):

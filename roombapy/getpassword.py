@@ -63,6 +63,7 @@ class RoombaPassword:
                 raw_data += response
                 if len(raw_data) >= 2:
                     response_length = struct.unpack("B", raw_data[1:2])[0]
+            self.server_socket.close()
         except socket.timeout:
             self.log.warning("Socket timeout")
             return None
@@ -70,7 +71,6 @@ class RoombaPassword:
             self.log.debug("Socket error: %s", e)
             return None
         else:
-            self.server_socket.close()
             return raw_data
 
 

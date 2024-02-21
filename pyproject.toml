@@ -79,7 +79,6 @@ ignore = [
     "PLE1205",
     "PLR2004", # Just annoying, not really useful
     "PLR0912",
-    "PLR1714",
     "PLW2901",
     "RET507",
     "SIM102",

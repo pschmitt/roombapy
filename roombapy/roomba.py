@@ -376,10 +376,8 @@ class Roomba:
                 ]
                 == "none"
                 and self.cleanMissionStatus_phase == "charge"
-                and (
-                    self.current_state == ROOMBA_STATES["pause"]
-                    or self.current_state == ROOMBA_STATES["recharge"]
-                )
+                and self.current_state
+                in (ROOMBA_STATES["pause"], ROOMBA_STATES["recharge"])
             ):
                 self.current_state = ROOMBA_STATES["cancelled"]
         except KeyError:
@@ -430,14 +428,14 @@ class Roomba:
             # so that we will draw map and can update charge status
             current_mission = None
         elif (
-            self.current_state == ROOMBA_STATES["stop"]
-            or self.current_state == ROOMBA_STATES["pause"]
+            self.current_state
+            in (ROOMBA_STATES["stop"], ROOMBA_STATES["pause"])
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = ROOMBA_STATES["cancelled"]
         elif (
             (
-                self.current_state == ROOMBA_STATES["hmUsrDock"]
-                or self.current_state == ROOMBA_STATES["cancelled"]
+                self.current_state
+                in (ROOMBA_STATES["hmUsrDock"], ROOMBA_STATES["cancelled"])
             )
             and self.cleanMissionStatus_phase == "charge"
             or (

@@ -18,7 +18,7 @@ import logging
 import threading
 import time
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 
 import orjson
 
@@ -218,7 +218,7 @@ class Roomba:
         self.log.debug("Send command: %s", command)
         roomba_command = {
             "command": command,
-            "time": int(datetime.timestamp(datetime.now())),
+            "time": int(datetime.timestamp(datetime.now(tz=timezone.utc))),
             "initiator": "localApp",
         }
         roomba_command.update(params)

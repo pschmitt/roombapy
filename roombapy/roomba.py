@@ -318,7 +318,7 @@ class Roomba:
                 else:
                     self.decode_topics(value, prefix + "_" + key)
             else:
-                other_list = value
+                mutable_value = value
                 if isinstance(value, list):
                     newlist = []
                     for i in value:
@@ -330,36 +330,38 @@ class Roomba:
                             if isinstance(i, str):
                                 val = str(i)
                             newlist.append(val)
-                    other_list = newlist
+                    mutable_value = newlist
                 if prefix is not None:
                     mutable_key = prefix + "_" + key
                 # all data starts with this, so it's redundant
                 mutable_key = mutable_key.replace("state_reported_", "")
                 # save variables for drawing map
                 if mutable_key == "pose_theta":
-                    self.co_ords["theta"] = other_list
+                    self.co_ords["theta"] = mutable_value
                 if mutable_key == "pose_point_x":  # x and y are reversed...
-                    self.co_ords["y"] = other_list
+                    self.co_ords["y"] = mutable_value
                 if mutable_key == "pose_point_y":
-                    self.co_ords["x"] = other_list
+                    self.co_ords["x"] = mutable_value
                 if mutable_key == "bin_full":
-                    self.bin_full = other_list
+                    self.bin_full = mutable_value
                 if mutable_key == "cleanMissionStatus_error":
                     try:
-                        self.error_code = other_list
-                        self.error_message = ROOMBA_ERROR_MESSAGES[other_list]
+                        self.error_code = mutable_value
+                        self.error_message = ROOMBA_ERROR_MESSAGES[
+                            mutable_value
+                        ]
                     except KeyError as e:
                         self.log.warning(
                             "Error looking up Roomba error message: %s", e
                         )
                         self.error_message = (
-                            "Unknown Error number: %s" % other_list
+                            "Unknown Error number: %s" % mutable_value
                         )
                 if key == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (
                         self.cleanMissionStatus_phase
                     )
-                    self.cleanMissionStatus_phase = other_list
+                    self.cleanMissionStatus_phase = mutable_value
 
         if prefix is None:
             self.update_state_machine()

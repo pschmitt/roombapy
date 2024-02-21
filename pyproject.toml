@@ -60,7 +60,6 @@ ignore = [
     "D203", # Conflicts with other rules
     "D404",
     "D213", # Conflicts with other rules
-    "DTZ005",
     "EM101",
     "EM102",
     "FBT002",

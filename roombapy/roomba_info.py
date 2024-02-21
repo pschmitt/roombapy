@@ -47,12 +47,16 @@ class RoombaInfo(BaseModel):
         return self.hostname.split("-")[1]
 
     class Config:
+        """Pydantic configuration for the RoombaInfo class."""
+
         # NOTE: Used to ensure Pydantic v1 backwards compatibility
         #       See https://github.com/samuelcolvin/pydantic/issues/1241
         keep_untouched = (cached_property,)
 
     def __hash__(self) -> int:
+        """Return the hash of the RoombaInfo object."""
         return hash(self.mac)
 
     def __eq__(self, o: object) -> bool:
+        """Return whether the RoombaInfo object is equal to another object."""
         return isinstance(o, RoombaInfo) and self.mac == o.mac

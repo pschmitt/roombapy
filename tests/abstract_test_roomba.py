@@ -1,4 +1,4 @@
-"""This module provides an abstract test class for Roomba."""
+"""Abstract test class for Roomba."""
 from roombapy import Roomba, RoombaFactory
 
 ROOMBA_CONFIG = {

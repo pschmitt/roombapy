@@ -1,8 +1,11 @@
+import logging
 import sys
 
 from roombapy import RoombaFactory
 from roombapy.discovery import RoombaDiscovery
 from roombapy.getpassword import RoombaPassword
+
+LOGGER = logging.getLogger(__name__)
 
 
 def discovery():
@@ -10,12 +13,12 @@ def discovery():
 
     roomba_discovery = RoombaDiscovery()
     if roomba_ip is not None:
-        print(roomba_discovery.find(roomba_ip))
+        LOGGER.info(roomba_discovery.find(roomba_ip))
         return
 
     robots_info = roomba_discovery.find()
     for robot in robots_info:
-        print(robot)
+        LOGGER.info(robot)
 
 
 def password():
@@ -30,7 +33,7 @@ def password():
     roomba_password = RoombaPassword(roomba_ip)
     found_password = roomba_password.get_password()
     roomba_info.password = found_password
-    print(roomba_info)
+    LOGGER.info(roomba_info)
 
 
 def connect():
@@ -47,7 +50,7 @@ def connect():
     roomba = RoombaFactory.create_roomba(
         roomba_info.ip, roomba_info.blid, roomba_password
     )
-    roomba.register_on_message_callback(lambda msg: print(msg))
+    roomba.register_on_message_callback(lambda msg: LOGGER.info(msg))
     roomba.connect()
 
     while True:
@@ -70,7 +73,7 @@ def _validate_roomba_info(roomba_info):
 
 
 def _wait_for_input():
-    print(
+    LOGGER.info(
         "Roomba have to be on Home Base powered on.\n"
         "Press and hold HOME button until you hear series of tones.\n"
         "Release button, Wi-Fi LED should be flashing"

@@ -1,3 +1,5 @@
+
+import paho.mqtt.client as mqtt
 from roombapy import Roomba, RoombaFactory
 
 ROOMBA_CONFIG = {
@@ -13,11 +15,11 @@ ROOMBA_CONFIG = {
 class AbstractTestRoomba:
     @staticmethod
     def get_default_roomba(
-        address=ROOMBA_CONFIG["host"],
-        blid=ROOMBA_CONFIG["username"],
-        password=ROOMBA_CONFIG["password"],
-        continuous=ROOMBA_CONFIG["continuous"],
-        delay=ROOMBA_CONFIG["delay"],
+        address: str = "127.0.0.1",
+        blid: str = "test",
+        password: str = "test",
+        continuous: bool = True,
+        delay: int = 120,
     ) -> Roomba:
         return RoombaFactory.create_roomba(
             address=address,
@@ -28,13 +30,7 @@ class AbstractTestRoomba:
         )
 
     @staticmethod
-    def get_message(topic, payload):
-        class Message:
-            pass
-
-        message = Message
-        message.topic = topic
+    def get_message(topic: bytes, payload: bytes) -> mqtt.MQTTMessage:
+        message = mqtt.MQTTMessage(topic=topic)
         message.payload = payload
-        message.qos = "qos"
-
         return message

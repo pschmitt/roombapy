@@ -7,13 +7,19 @@ class RoombaFactory:
 
     @staticmethod
     def create_roomba(
-        address=None, blid=None, password=None, continuous=True, delay=1
-    ):
+        address: str,
+        blid: str,
+        password: str,
+        continuous: bool = True,
+        delay: int = 1,
+    ) -> Roomba:
         remote_client = RoombaFactory._create_remote_client(
             address, blid, password
         )
-        return Roomba(remote_client, continuous, delay)
+        return Roomba(remote_client, continuous=continuous, delay=delay)
 
     @staticmethod
-    def _create_remote_client(address=None, blid=None, password=None):
+    def _create_remote_client(
+        address: str, blid: str, password: str
+    ) -> RoombaRemoteClient:
         return RoombaRemoteClient(address=address, blid=blid, password=password)

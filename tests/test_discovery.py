@@ -2,7 +2,7 @@ from roombapy.discovery import RoombaDiscovery
 
 
 class TestDiscovery:
-    def test_discovery_with_wrong_msg(self):
+    def test_discovery_with_wrong_msg(self) -> None:
         # given
         discovery = RoombaDiscovery()
 

@@ -1,17 +1,18 @@
+
 from tests import abstract_test_roomba
 
 
 class TestRoomba(abstract_test_roomba.AbstractTestRoomba):
-    def test_roomba_with_data(self):
+    def test_roomba_with_data(self) -> None:
         # given
         roomba = self.get_default_roomba()
 
         # when
         roomba.on_message(
-            None,
+            None,  # type: ignore
             None,
             TestRoomba.get_message(
-                "topic",
+                b"topic",
                 b'{"state":{"reported":{"cleanSchedule":{"cycle":["none",'
                 b'"none","none","none","none","none","none"],"h":'
                 b'[9,11,11,11,11,11,9],"m":[0,0,0,0,0,0,0]},"language":0'
@@ -24,10 +25,10 @@ class TestRoomba(abstract_test_roomba.AbstractTestRoomba):
             ),
         )
         roomba.on_message(
-            None,
+            None,  # type: ignore
             None,
             TestRoomba.get_message(
-                "topic",
+                b"topic",
                 b'{"state":{"reported":{"signal":{"rssi":-38,"snr":52}}}}',
             ),
         )

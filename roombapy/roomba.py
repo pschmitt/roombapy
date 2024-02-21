@@ -14,15 +14,23 @@ files Nick Waterton 11th July  2017  V1.2.1: Quick (untested) fix for room
 outlines if you don't have OpenCV
 """
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
 from collections.abc import Mapping
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Callable
 
 import orjson
 
 from roombapy.const import ROOMBA_ERROR_MESSAGES, ROOMBA_STATES
+
+if TYPE_CHECKING:
+    import paho.mqtt.client as mqtt
+
+    from roombapy.remote_client import RoombaRemoteClient
 
 MAX_CONNECTION_RETRIES = 3
 
@@ -46,7 +54,13 @@ class Roomba:
     be decoded and published on the designated mqtt client topic.
     """
 
-    def __init__(self, remote_client, continuous=True, delay=1):
+    def __init__(
+        self,
+        remote_client: RoombaRemoteClient,
+        *,
+        continuous: bool = True,
+        delay: int = 1,
+    ) -> None:
         """Roomba client initialization."""
         self.log = logging.getLogger(__name__)
 
@@ -70,32 +84,40 @@ class Roomba:
         self.co_ords = {"x": 0, "y": 0, "theta": 180}
         self.cleanMissionStatus_phase = ""
         self.previous_cleanMissionStatus_phase = ""
-        self.current_state = None
+        self.current_state: str | None = None
         self.bin_full = False
-        self.master_state = {}  # all info from roomba stored here
+        self.master_state: dict[
+            str, Any
+        ] = {}  # all info from roomba stored here
         self.time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
         self._thread = threading.Thread(
             target=self.periodic_connection, name="roombapy"
         )
-        self.on_message_callbacks = []
-        self.on_disconnect_callbacks = []
-        self.error_code = None
-        self.error_message = None
-        self.client_error = None
+        self.on_message_callbacks: list[Callable[[dict[str, Any]], None]] = []
+        self.on_disconnect_callbacks: list[
+            Callable[[str | Exception], None]
+        ] = []
+        self.error_code: str | None = None
+        self.error_message: str | None = None
+        self.client_error: str | Exception | None = None
 
-    def register_on_message_callback(self, callback):
+    def register_on_message_callback(
+        self, callback: Callable[[dict[str, Any]], None]
+    ) -> None:
         self.on_message_callbacks.append(callback)
 
-    def register_on_disconnect_callback(self, callback):
+    def register_on_disconnect_callback(
+        self, callback: Callable[[str | Exception], None]
+    ) -> None:
         self.on_disconnect_callbacks.append(callback)
 
-    def _init_remote_client_callbacks(self):
+    def _init_remote_client_callbacks(self) -> None:
         self.remote_client.set_on_message(self.on_message)
         self.remote_client.set_on_connect(self.on_connect)
         self.remote_client.set_on_disconnect(self.on_disconnect)
 
-    def connect(self):
+    def connect(self) -> None:
         if self.roomba_connected or self.periodic_connection_running:
             return
 
@@ -107,7 +129,7 @@ class Roomba:
 
         self.time = time.time()  # save connection time
 
-    def _connect(self):
+    def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
         if not is_connected:
             raise RoombaConnectionError(
@@ -115,13 +137,13 @@ class Roomba:
             )
         return is_connected
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.continuous:
             self.remote_client.disconnect()
         else:
             self.stop_connection = True
 
-    def periodic_connection(self):
+    def periodic_connection(self) -> None:
         # only one connection thread at a time!
         if self.periodic_connection_running:
             return
@@ -138,7 +160,7 @@ class Roomba:
         self.remote_client.disconnect()
         self.periodic_connection_running = False
 
-    def on_connect(self, error):
+    def on_connect(self, error: str | Exception | None) -> None:
         self.log.info("Connecting to Roomba %s", self.remote_client.address)
         self.client_error = error
         if error is not None:
@@ -152,7 +174,7 @@ class Roomba:
         self.roomba_connected = True
         self.remote_client.subscribe(self.topic)
 
-    def on_disconnect(self, error):
+    def on_disconnect(self, error: str | Exception | None) -> None:
         self.roomba_connected = False
         self.client_error = error
         if error is not None:
@@ -170,7 +192,9 @@ class Roomba:
 
         self.log.info("Disconnected from Roomba %s", self.remote_client.address)
 
-    def on_message(self, mosq, obj, msg):
+    def on_message(
+        self, _client: mqtt.Client, _obj: Any, msg: mqtt.MQTTMessage
+    ) -> None:
         if self.exclude != "":
             if self.exclude in msg.topic:
                 return
@@ -202,7 +226,9 @@ class Roomba:
         for callback in self.on_message_callbacks:
             callback(json_data)
 
-    def send_command(self, command, params=None):
+    def send_command(
+        self, command: str, params: dict[str, Any] | None = None
+    ) -> None:
         if params is None:
             params = {}
 
@@ -222,9 +248,9 @@ class Roomba:
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
-    def set_preference(self, preference, setting):
+    def set_preference(self, preference: Any, setting: str) -> None:
         self.log.debug("Set preference: %s, %s", preference, setting)
-        val = setting
+        val: str | bool = setting
         # Parse boolean string
         if isinstance(setting, str):
             if setting.lower() == "true":
@@ -237,7 +263,9 @@ class Roomba:
         self.log.debug("Publishing Roomba Setting : %s" % str_command)
         self.remote_client.publish("delta", str_command)
 
-    def dict_merge(self, dct, merge_dct):
+    def dict_merge(
+        self, dct: dict[str, Any], merge_dct: dict[str, Any]
+    ) -> None:
         """Recursive dict merge.
 
         Inspired by :meth:``dict.update()``, instead
@@ -258,7 +286,9 @@ class Roomba:
             else:
                 dct[k] = merge_dct[k]
 
-    def decode_payload(self, topic, payload):
+    def decode_payload(
+        self, topic: str, payload: bytes
+    ) -> tuple[str | bytes, dict[str, Any]]:
         """Format json for pretty printing.
 
         Returns string sutiable for logging, and a dict of the json data
@@ -266,6 +296,7 @@ class Roomba:
         indent = self.master_indent + 31  # number of spaces to indent json data
 
         json_data = None
+        formatted_data: str | bytes
         try:
             # if it's json data, decode it. OrderedDict is no longer
             # needed since python 3.6 and later guarantees dict
@@ -292,9 +323,11 @@ class Roomba:
 
         except ValueError:
             formatted_data = payload
-        return formatted_data, dict(json_data)
+        return formatted_data, dict(json_data or {})
 
-    def decode_topics(self, state, prefix=None):
+    def decode_topics(
+        self, state: dict[str, Any], prefix: str | None = None
+    ) -> None:
         """Decode json data dict and publish as individual topics.
 
         Publish to brokerFeedback/topic the keys are concatinated with _
@@ -350,7 +383,7 @@ class Roomba:
         if prefix is None:
             self.update_state_machine()
 
-    def update_state_machine(self, new_state=None):
+    def update_state_machine(self, new_state: str | None = None) -> None:
         """Roomba progresses through states (phases).
 
         Normal Sequence is "" -> charge -> run -> hmPostMsn -> charge

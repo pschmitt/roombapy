@@ -4,9 +4,9 @@ from functools import cached_property
 from typing import Optional
 
 try:
-    from pydantic.v1 import BaseModel, Field, field_validator
+    from pydantic.v1 import BaseModel, Field, field_validator  # type: ignore
 except ImportError:
-    from pydantic import BaseModel, Field
+    from pydantic import BaseModel, Field  # type: ignore
     from pydantic import validator as field_validator
 
 
@@ -20,7 +20,7 @@ class RoombaInfo(BaseModel):
     capabilities: dict[str, int] = Field(alias="cap")
     password: Optional[str] = None
 
-    @field_validator("hostname")
+    @field_validator("hostname")  # type: ignore
     @classmethod
     def hostname_validator(cls, value: str) -> str:
         if "-" not in value:

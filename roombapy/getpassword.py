@@ -1,5 +1,7 @@
 """The class helps you to get password for your Roomba."""
 
+from __future__ import annotations
+
 import logging
 import socket
 import struct
@@ -13,10 +15,10 @@ class RoombaPassword:
     roomba_ip = None
     roomba_port = 8883
     message = None
-    server_socket = None
-    log = None
+    server_socket: socket.socket
+    log: logging.Logger
 
-    def __init__(self, roomba_ip):
+    def __init__(self, roomba_ip: str) -> None:
         """Init default values."""
         self.roomba_ip = roomba_ip
         self.message = bytes.fromhex("f005efcc3b2900")
@@ -30,24 +32,26 @@ class RoombaPassword:
     After that execute get_password method
     """
 
-    def get_password(self):
+    def get_password(self) -> str:
         """Get password for roomba."""
         self._connect()
         self._send_message()
         response = self._get_response()
+        assert response
         return _decode_password(response)
 
-    def _connect(self):
+    def _connect(self) -> None:
         self.server_socket.connect((self.roomba_ip, self.roomba_port))
         self.log.debug(
             "Connected to Roomba %s:%s", self.roomba_ip, self.roomba_port
         )
 
-    def _send_message(self):
+    def _send_message(self) -> None:
+        assert self.message
         self.server_socket.send(self.message)
         self.log.debug("Message sent")
 
-    def _get_response(self):
+    def _get_response(self) -> bytes | None:
         try:
             raw_data = b""
             response_length = 35
@@ -73,11 +77,11 @@ class RoombaPassword:
             return None
 
 
-def _decode_password(data):
+def _decode_password(data: bytes) -> str:
     return str(data[7:].decode().rstrip("\x00"))
 
 
-def _get_socket():
+def _get_socket() -> socket.socket:
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.settimeout(10)
     context = generate_tls_context()

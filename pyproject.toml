@@ -55,8 +55,6 @@ ignore = [
     "BLE001",
     "B007",
     "C901",
-    "D105",
-    "D106",
     "D203", # Conflicts with other rules
     "D404",
     "D213", # Conflicts with other rules

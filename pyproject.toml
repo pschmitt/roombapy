@@ -58,7 +58,6 @@ ignore = [
     "D105",
     "D106",
     "D203", # Conflicts with other rules
-    "D404",
     "D213", # Conflicts with other rules
     "DTZ005",
     "EM101",

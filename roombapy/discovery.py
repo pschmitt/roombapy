@@ -56,8 +56,7 @@ class RoombaDiscovery:
                 response = _decode_data(raw_response)
                 if not response:
                     continue
-                else:
-                    return response
+                return response
         except socket.timeout:
             self.log.info("Socket timeout")
             return None

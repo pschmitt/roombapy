@@ -248,7 +248,7 @@ class Roomba:
         :param merge_dct: dct merged into dct
         :return: None
         """
-        for k, v in merge_dct.items():
+        for k in merge_dct:
             if (
                 k in dct
                 and isinstance(dct[k], dict)

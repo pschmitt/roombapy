@@ -114,9 +114,8 @@ class Roomba:
     def _connect(self):
         is_connected = self.remote_client.connect()
         if not is_connected:
-            raise RoombaConnectionError(
-                f"Unable to connect to Roomba at {self.remote_client.address}"
-            )
+            msg = f"Unable to connect to Roomba at {self.remote_client.address}"
+            raise RoombaConnectionError(msg)
         return is_connected
 
     def disconnect(self):

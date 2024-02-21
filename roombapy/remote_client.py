@@ -78,11 +78,10 @@ class RoombaRemoteClient:
             )
             try:
                 self._open_mqtt_connection()
+            except Exception:
+                self.log.exception("Can't connect to %s", self.address)
+            else:
                 return True
-            except Exception as e:  # noqa: BLE001
-                self.log.error(
-                    "Can't connect to %s, error: %s", self.address, e
-                )
             attempt += 1
 
         self.log.error("Unable to connect to %s", self.address)
@@ -121,7 +120,7 @@ class RoombaRemoteClient:
         self.log.debug("Setting TLS certificate")
         ssl_context = generate_tls_context()
         mqtt_client.tls_set_context(ssl_context)
-        mqtt_client.tls_insecure_set(True)
+        mqtt_client.tls_insecure_set(True)  # noqa: FBT003
 
         return mqtt_client
 

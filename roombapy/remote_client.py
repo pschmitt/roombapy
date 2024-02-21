@@ -114,7 +114,7 @@ class RoombaRemoteClient:
 
         return mqtt_client
 
-    def _internal_on_connect(self, client, userdata, flags, rc):
+    def _internal_on_connect(self, _client, _userdata, _flags, rc):
         self.log.debug(
             "Connected to Roomba %s, response code = %s", self.address, rc
         )
@@ -130,7 +130,7 @@ class RoombaRemoteClient:
         if self.on_connect is not None:
             self.on_connect(connection_error)
 
-    def _internal_on_disconnect(self, client, userdata, rc):
+    def _internal_on_disconnect(self, _client, _userdata, rc):
         self.log.debug(
             "Disconnected from Roomba %s, response code = %s", self.address, rc
         )

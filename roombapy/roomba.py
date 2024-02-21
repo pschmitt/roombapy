@@ -170,7 +170,7 @@ class Roomba:
 
         self.log.info("Disconnected from Roomba %s", self.remote_client.address)
 
-    def on_message(self, mosq, obj, msg):
+    def on_message(self, _mosq, _obj, msg):
         if self.exclude != "":
             if self.exclude in msg.topic:
                 return
@@ -258,7 +258,7 @@ class Roomba:
             else:
                 dct[k] = merge_dct[k]
 
-    def decode_payload(self, topic, payload):
+    def decode_payload(self, _topic, payload):
         """Format json for pretty printing.
 
         Returns string sutiable for logging, and a dict of the json data

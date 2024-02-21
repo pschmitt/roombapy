@@ -63,8 +63,6 @@ ignore = [
     "EM102",
     "FBT002",
     "FBT003",
-    "G002",
-    "G004",
     "TRY002",
     "TRY003",
     "TRY300",
@@ -75,10 +73,8 @@ ignore = [
     "D101", # documentation info, should be removed after fixes
     "D102", # documentation info, should be removed after fixes
     "D103", # documentation info, should be removed after fixes
-    "PERF102",
     "PLR2004", # Just annoying, not really useful
     "PLR0912",
-    "PLR1714",
     "PLW2901",
     "RET507",
     "SIM102",

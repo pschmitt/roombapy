@@ -234,7 +234,7 @@ class Roomba:
         tmp = {preference: val}
         roomba_command = {"state": tmp}
         str_command = orjson.dumps(roomba_command).decode("utf-8")
-        self.log.debug("Publishing Roomba Setting : %s" % str_command)
+        self.log.debug("Publishing Roomba Setting : %s", str_command)
         self.remote_client.publish("delta", str_command)
 
     def dict_merge(self, dct, merge_dct):
@@ -248,7 +248,7 @@ class Roomba:
         :param merge_dct: dct merged into dct
         :return: None
         """
-        for k, v in merge_dct.items():
+        for k in merge_dct:
             if (
                 k in dct
                 and isinstance(dct[k], dict)
@@ -376,10 +376,8 @@ class Roomba:
                 ]
                 == "none"
                 and self.cleanMissionStatus_phase == "charge"
-                and (
-                    self.current_state == ROOMBA_STATES["pause"]
-                    or self.current_state == ROOMBA_STATES["recharge"]
-                )
+                and self.current_state
+                in (ROOMBA_STATES["pause"], ROOMBA_STATES["recharge"])
             ):
                 self.current_state = ROOMBA_STATES["cancelled"]
         except KeyError:
@@ -430,14 +428,14 @@ class Roomba:
             # so that we will draw map and can update charge status
             current_mission = None
         elif (
-            self.current_state == ROOMBA_STATES["stop"]
-            or self.current_state == ROOMBA_STATES["pause"]
+            self.current_state
+            in (ROOMBA_STATES["stop"], ROOMBA_STATES["pause"])
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = ROOMBA_STATES["cancelled"]
         elif (
             (
-                self.current_state == ROOMBA_STATES["hmUsrDock"]
-                or self.current_state == ROOMBA_STATES["cancelled"]
+                self.current_state
+                in (ROOMBA_STATES["hmUsrDock"], ROOMBA_STATES["cancelled"])
             )
             and self.cleanMissionStatus_phase == "charge"
             or (

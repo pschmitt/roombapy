@@ -1,3 +1,4 @@
+"""Module for discovering Roomba devices on the local network."""
 from __future__ import annotations
 
 import logging
@@ -9,6 +10,8 @@ from roombapy.roomba_info import RoombaInfo
 
 
 class RoombaDiscovery:
+    """Class for discovering Roomba devices on the local network."""
+
     udp_bind_address = ""
     udp_address = "<broadcast>"
     udp_port = 5678
@@ -18,16 +21,18 @@ class RoombaDiscovery:
     log = None
 
     def __init__(self):
-        """Init discovery."""
+        """Initialize the discovery class."""
         self.server_socket = _get_socket()
         self.log = logging.getLogger(__name__)
 
     def find(self, ip=None):
+        """Find Roomba devices on the local network."""
         if ip is not None:
             return self.get(ip)
         return self.get_all()
 
     def get_all(self):
+        """Get all Roomba devices on the local network."""
         self._start_server()
         self._broadcast_message(self.amount_of_broadcasted_messages)
         robots = set()
@@ -40,11 +45,13 @@ class RoombaDiscovery:
         return robots
 
     def get(self, ip):
+        """Get Roomba device with the specified IP address."""
         self._start_server()
         self._send_message(ip)
         return self._get_response(ip)
 
     def _get_response(self, ip=None):
+        """Get a response from the Roomba device."""
         try:
             while True:
                 raw_response, addr = self.server_socket.recvfrom(1024)

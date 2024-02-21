@@ -1,3 +1,4 @@
+"""This module provides an abstract test class for Roomba."""
 from roombapy import Roomba, RoombaFactory
 
 ROOMBA_CONFIG = {
@@ -11,6 +12,8 @@ ROOMBA_CONFIG = {
 
 
 class AbstractTestRoomba:
+    """Abstract test class for Roomba."""
+
     @staticmethod
     def get_default_roomba(
         address=ROOMBA_CONFIG["host"],
@@ -19,6 +22,7 @@ class AbstractTestRoomba:
         continuous=ROOMBA_CONFIG["continuous"],
         delay=ROOMBA_CONFIG["delay"],
     ) -> Roomba:
+        """Get a default Roomba."""
         return RoombaFactory.create_roomba(
             address=address,
             blid=blid,
@@ -29,6 +33,8 @@ class AbstractTestRoomba:
 
     @staticmethod
     def get_message(topic, payload):
+        """Get a message."""
+
         class Message:
             pass
 

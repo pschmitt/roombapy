@@ -1,3 +1,4 @@
+"""Module for RoombaInfo class."""
 from __future__ import annotations
 
 from functools import cached_property
@@ -16,6 +17,8 @@ except ImportError:
 
 
 class RoombaInfo(BaseModel):
+    """Class for storing information about a Roomba device."""
+
     hostname: str
     firmware: str = Field(alias="sw")
     ip: str
@@ -28,6 +31,7 @@ class RoombaInfo(BaseModel):
     @field_validator("hostname")
     @classmethod
     def hostname_validator(cls, value: str) -> str:
+        """Validate the hostname."""
         if "-" not in value:
             raise ValueError(f"hostname does not contain a dash: {value}")
         model_name, blid = value.split("-")
@@ -39,6 +43,7 @@ class RoombaInfo(BaseModel):
 
     @cached_property
     def blid(self) -> str:
+        """Return the BLID."""
         return self.hostname.split("-")[1]
 
     class Config:

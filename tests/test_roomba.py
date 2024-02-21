@@ -1,8 +1,12 @@
+"""Test the Roomba class."""
 from tests import abstract_test_roomba
 
 
 class TestRoomba(abstract_test_roomba.AbstractTestRoomba):
+    """Test the Roomba class."""
+
     def test_roomba_with_data(self):
+        """Test Roomba with data."""
         # given
         roomba = self.get_default_roomba()
 

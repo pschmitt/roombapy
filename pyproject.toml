@@ -71,10 +71,6 @@ ignore = [
     "TRY400",
     "COM812", # Conflicts with other rules
     "ISC001", # Conflicts with other rules
-    "D100", # documentation info, should be removed after fixes
-    "D101", # documentation info, should be removed after fixes
-    "D102", # documentation info, should be removed after fixes
-    "D103", # documentation info, should be removed after fixes
     "PLR2004", # Just annoying, not really useful
     "PLR0912",
     "PLW2901",

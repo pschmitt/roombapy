@@ -85,17 +85,21 @@ class Roomba:
         self.client_error = None
 
     def register_on_message_callback(self, callback):
+        """Register a function to be called when a message is received."""
         self.on_message_callbacks.append(callback)
 
     def register_on_disconnect_callback(self, callback):
+        """Register a function to be called when a disconnect occurs."""
         self.on_disconnect_callbacks.append(callback)
 
     def _init_remote_client_callbacks(self):
+        """Initialize the remote client callbacks."""
         self.remote_client.set_on_message(self.on_message)
         self.remote_client.set_on_connect(self.on_connect)
         self.remote_client.set_on_disconnect(self.on_disconnect)
 
     def connect(self):
+        """Connect to the Roomba."""
         if self.roomba_connected or self.periodic_connection_running:
             return
 
@@ -116,12 +120,14 @@ class Roomba:
         return is_connected
 
     def disconnect(self):
+        """Disconnect from the Roomba."""
         if self.continuous:
             self.remote_client.disconnect()
         else:
             self.stop_connection = True
 
     def periodic_connection(self):
+        """Periodic connection to the Roomba."""
         # only one connection thread at a time!
         if self.periodic_connection_running:
             return
@@ -139,6 +145,7 @@ class Roomba:
         self.periodic_connection_running = False
 
     def on_connect(self, error):
+        """On connect callback."""
         self.log.info("Connecting to Roomba %s", self.remote_client.address)
         self.client_error = error
         if error is not None:
@@ -153,6 +160,7 @@ class Roomba:
         self.remote_client.subscribe(self.topic)
 
     def on_disconnect(self, error):
+        """On disconnect callback."""
         self.roomba_connected = False
         self.client_error = error
         if error is not None:
@@ -171,6 +179,7 @@ class Roomba:
         self.log.info("Disconnected from Roomba %s", self.remote_client.address)
 
     def on_message(self, _mosq, _obj, msg):
+        """On message callback."""
         if self.exclude != "":
             if self.exclude in msg.topic:
                 return
@@ -203,6 +212,7 @@ class Roomba:
             callback(json_data)
 
     def send_command(self, command, params=None):
+        """Send a command to the Roomba."""
         if params is None:
             params = {}
 
@@ -223,6 +233,7 @@ class Roomba:
         self.remote_client.publish("cmd", str_command)
 
     def set_preference(self, preference, setting):
+        """Set a preference on the Roomba."""
         self.log.debug("Set preference: %s, %s", preference, setting)
         val = setting
         # Parse boolean string

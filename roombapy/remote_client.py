@@ -1,3 +1,4 @@
+"""Roomba remote client."""
 import logging
 import ssl
 from functools import cache
@@ -25,6 +26,8 @@ def generate_tls_context() -> ssl.SSLContext:
 
 
 class RoombaRemoteClient:
+    """Roomba remote client."""
+
     address = None
     port = None
     blid = None
@@ -35,7 +38,7 @@ class RoombaRemoteClient:
     on_disconnect = None
 
     def __init__(self, address, blid, password, port=8883):
-        """Create mqtt client."""
+        """Initialize the Roomba remote client."""
         self.address = address
         self.blid = blid
         self.password = password
@@ -44,21 +47,27 @@ class RoombaRemoteClient:
         self.mqtt_client = self._get_mqtt_client()
 
     def set_on_message(self, on_message):
+        """Set the on message callback."""
         self.mqtt_client.on_message = on_message
 
     def set_on_connect(self, on_connect):
+        """Set the on connect callback."""
         self.on_connect = on_connect
 
     def set_on_publish(self, on_publish):
+        """Set the on publish callback."""
         self.mqtt_client.on_publish = on_publish
 
     def set_on_subscribe(self, on_subscribe):
+        """Set the on subscribe callback."""
         self.mqtt_client.on_subscribe = on_subscribe
 
     def set_on_disconnect(self, on_disconnect):
+        """Set the on disconnect callback."""
         self.on_disconnect = on_disconnect
 
     def connect(self):
+        """Connect to the Roomba."""
         attempt = 1
         while attempt <= MAX_CONNECTION_RETRIES:
             self.log.info(
@@ -80,12 +89,15 @@ class RoombaRemoteClient:
         return False
 
     def disconnect(self):
+        """Disconnect from the Roomba."""
         self.mqtt_client.disconnect()
 
     def subscribe(self, topic):
+        """Subscribe to a topic."""
         self.mqtt_client.subscribe(topic)
 
     def publish(self, topic, payload):
+        """Publish a message to a topic."""
         self.mqtt_client.publish(topic, payload)
 
     def _open_mqtt_connection(self):

@@ -1,3 +1,4 @@
+"""Entry points for the roombapy package."""
 import logging
 import sys
 
@@ -9,6 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def discovery():
+    """Discover Roomba devices on the local network."""
     roomba_ip = _get_ip_from_arg()
 
     roomba_discovery = RoombaDiscovery()
@@ -22,6 +24,7 @@ def discovery():
 
 
 def password():
+    """Get password for a Roomba device."""
     roomba_ip = _get_ip_from_arg()
     _validate_ip(roomba_ip)
     _wait_for_input()
@@ -37,6 +40,7 @@ def password():
 
 
 def connect():
+    """Connect to a Roomba device."""
     roomba_ip = _get_ip_from_arg()
     _validate_ip(roomba_ip)
 

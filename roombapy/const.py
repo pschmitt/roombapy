@@ -1,3 +1,5 @@
+"""Constants for roombapy."""
+
 MQTT_ERROR_MESSAGES = {
     0: None,
     1: "Bad protocol",

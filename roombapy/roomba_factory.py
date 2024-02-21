@@ -1,3 +1,4 @@
+"""Factory class to create Roomba class to control your robot."""
 from roombapy import Roomba
 from roombapy.remote_client import RoombaRemoteClient
 
@@ -9,6 +10,7 @@ class RoombaFactory:
     def create_roomba(
         address=None, blid=None, password=None, continuous=True, delay=1
     ):
+        """Create a Roomba instance."""
         remote_client = RoombaFactory._create_remote_client(
             address, blid, password
         )

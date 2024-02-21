@@ -23,6 +23,23 @@ files = [
 ]
 
 [[package]]
+name = "codespell"
+version = "2.2.6"
+description = "Codespell"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "codespell-2.2.6-py3-none-any.whl", hash = "sha256:9ee9a3e5df0990604013ac2a9f22fa8e57669c827124a2e961fe8a1da4cacc07"},
+    {file = "codespell-2.2.6.tar.gz", hash = "sha256:a8c65d8eb3faa03deabab6b3bbe798bea72e1799c7e9e955d57eca4096abcff9"},
+]
+
+[package.extras]
+dev = ["Pygments", "build", "chardet", "pre-commit", "pytest", "pytest-cov", "pytest-dependency", "ruff", "tomli", "twine"]
+hard-encoding-detection = ["chardet"]
+toml = ["tomli"]
+types = ["chardet (>=5.1.0)", "mypy", "pytest", "pytest-cov", "pytest-dependency"]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
@@ -633,4 +650,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "8c2b0c11da188d803419a939cc7cc3d6c8196fb4499083cdf43d5bfe7ab9072a"
+content-hash = "b9548b456ddcc37c02ef52a5349c63635f8c28a7faa3044b9ce3f58a6af2b9df"

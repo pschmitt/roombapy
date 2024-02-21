@@ -39,7 +39,7 @@ class Roomba:
     password() class above (or can be auto discovered)
     Most of the underlying info was obtained from here:
     https://github.com/koalazak/dorita980 many thanks!
-    The values received from the Roomba as stored in a dictionay called
+    The values received from the Roomba as stored in a dictionary called
     master_state, and can be accessed at any time, the contents are live, and
     will build with time after connection.
     This is not needed if the forward to mqtt option is used, as the events will
@@ -297,8 +297,8 @@ class Roomba:
     def decode_topics(self, state, prefix=None):
         """Decode json data dict and publish as individual topics.
 
-        Publish to brokerFeedback/topic the keys are concatinated with _
-        to make one unique topic name strings are expressely converted
+        Publish to brokerFeedback/topic the keys are concatenated with _
+        to make one unique topic name strings are expressively converted
         to strings to avoid unicode representations
         """
         for key, value in state.items():

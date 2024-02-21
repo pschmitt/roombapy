@@ -66,6 +66,14 @@ repos:
         language: system
         types: [yaml]
         entry: poetry run check-yaml
+      - id: codespell
+        name: ✅ Check code for common misspellings
+        language: system
+        types: [text]
+        exclude: ^poetry\.lock$
+        entry: poetry run codespell
+        args:
+          - --ignore-words-list=nd
       - id: detect-private-key
         name: 🕵️  Detect Private Keys
         language: system

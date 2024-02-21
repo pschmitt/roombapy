@@ -313,12 +313,14 @@ class Roomba:
         to strings to avoid unicode representations
         """
         for key, value in state.items():
+            mutable_key = key
             if isinstance(value, dict):
                 if prefix is None:
                     self.decode_topics(value, key)
                 else:
                     self.decode_topics(value, prefix + "_" + key)
             else:
+                other_list = value
                 if isinstance(value, list):
                     newlist = []
                     for i in value:
@@ -326,37 +328,40 @@ class Roomba:
                             for ki, vi in i.items():
                                 newlist.append((str(ki), vi))
                         else:
+                            val = i
                             if isinstance(i, str):
-                                i = str(i)
-                            newlist.append(i)
-                    value = newlist
+                                val = str(i)
+                            newlist.append(val)
+                    other_list = newlist
                 if prefix is not None:
-                    key = prefix + "_" + key
+                    mutable_key = prefix + "_" + key
                 # all data starts with this, so it's redundant
-                key = key.replace("state_reported_", "")
+                mutable_key = mutable_key.replace("state_reported_", "")
                 # save variables for drawing map
-                if key == "pose_theta":
-                    self.co_ords["theta"] = value
-                if key == "pose_point_x":  # x and y are reversed...
-                    self.co_ords["y"] = value
-                if key == "pose_point_y":
-                    self.co_ords["x"] = value
-                if key == "bin_full":
-                    self.bin_full = value
-                if key == "cleanMissionStatus_error":
+                if mutable_key == "pose_theta":
+                    self.co_ords["theta"] = other_list
+                if mutable_key == "pose_point_x":  # x and y are reversed...
+                    self.co_ords["y"] = other_list
+                if mutable_key == "pose_point_y":
+                    self.co_ords["x"] = other_list
+                if mutable_key == "bin_full":
+                    self.bin_full = other_list
+                if mutable_key == "cleanMissionStatus_error":
                     try:
-                        self.error_code = value
-                        self.error_message = ROOMBA_ERROR_MESSAGES[value]
+                        self.error_code = other_list
+                        self.error_message = ROOMBA_ERROR_MESSAGES[other_list]
                     except KeyError as e:
                         self.log.warning(
                             "Error looking up Roomba error message: %s", e
                         )
-                        self.error_message = "Unknown Error number: %s" % value
+                        self.error_message = (
+                            "Unknown Error number: %s" % other_list
+                        )
                 if key == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (
                         self.cleanMissionStatus_phase
                     )
-                    self.cleanMissionStatus_phase = value
+                    self.cleanMissionStatus_phase = other_list
 
         if prefix is None:
             self.update_state_machine()

@@ -69,7 +69,6 @@ ignore = [
     "ISC001", # Conflicts with other rules
     "PLR2004", # Just annoying, not really useful
     "PLR0912",
-    "PLW2901",
     "SIM102",
 ]
 select = ["ALL"]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import socket
-from typing import Optional
 
 from pydantic import ValidationError
 
@@ -81,7 +80,7 @@ class RoombaDiscovery:
         self.log.debug("Socket server started, port %s", self.udp_port)
 
 
-def _decode_data(raw_response: bytes) -> Optional[RoombaInfo]:
+def _decode_data(raw_response: bytes) -> RoombaInfo | None:
     try:
         data = raw_response.decode()
     except UnicodeDecodeError:

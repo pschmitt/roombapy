@@ -1,45 +1,37 @@
-"""Test Roomba integration with the real device."""
+"""Test Roomba integration with the mocked device."""
 import asyncio
+from asyncio import BaseEventLoop
 
 import pytest
+from roombapy import Roomba
 
-from tests import abstract_test_roomba
+
+@pytest.mark.asyncio()
+async def test_roomba_connect(
+    roomba: Roomba, event_loop: BaseEventLoop
+) -> None:
+    """Connect to the Roomba."""
+    is_connected = await roomba_connect(roomba, event_loop)
+    await roomba_disconnect(roomba, event_loop)
+    assert is_connected
 
 
-class TestRoombaIntegration(abstract_test_roomba.AbstractTestRoomba):
-    """Test Roomba integration with the real device."""
+@pytest.mark.asyncio()
+async def test_roomba_connect_error(
+    broken_roomba: Roomba, event_loop: BaseEventLoop
+) -> None:
+    """Test Roomba connect error."""
+    is_connected = await roomba_connect(broken_roomba, event_loop)
+    assert not is_connected
 
-    @pytest.mark.asyncio()
-    async def test_roomba_connect(self, event_loop):
-        """Test Roomba connect."""
-        # given
-        roomba = self.get_default_roomba()
 
-        # when
-        is_connected = await self.roomba_connect(roomba, event_loop)
-        await self.roomba_disconnect(roomba, event_loop)
+async def roomba_connect(robot: Roomba, loop: BaseEventLoop) -> None:
+    """Connect to the Roomba."""
+    await loop.run_in_executor(None, robot.connect)
+    await asyncio.sleep(1)
+    return robot.roomba_connected
 
-        # then
-        assert is_connected
 
-    @pytest.mark.asyncio()
-    async def test_roomba_connect_error(self, event_loop):
-        """Test Roomba connect error."""
-        # given
-        roomba = self.get_default_roomba(blid="wrong")
-
-        # when
-        is_connected = await self.roomba_connect(roomba, event_loop)
-
-        # then
-        assert not is_connected
-
-    async def roomba_connect(self, roomba, loop):
-        """Connect to the Roomba."""
-        await loop.run_in_executor(None, roomba.connect)
-        await asyncio.sleep(1)
-        return roomba.roomba_connected
-
-    async def roomba_disconnect(self, roomba, loop):
-        """Disconnect from the Roomba."""
-        await loop.run_in_executor(None, roomba.disconnect)
+async def roomba_disconnect(robot: Roomba, loop: BaseEventLoop) -> None:
+    """Disconnect from the Roomba."""
+    await loop.run_in_executor(None, robot.disconnect)

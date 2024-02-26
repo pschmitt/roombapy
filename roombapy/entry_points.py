@@ -15,10 +15,10 @@ def discovery():
 
     roomba_discovery = RoombaDiscovery()
     if roomba_ip is not None:
-        LOGGER.info(roomba_discovery.find(roomba_ip))
+        LOGGER.info(roomba_discovery.get(roomba_ip))
         return
 
-    robots_info = roomba_discovery.find()
+    robots_info = roomba_discovery.get_all()
     for robot in robots_info:
         LOGGER.info(robot)
 
@@ -30,7 +30,7 @@ def password():
     _wait_for_input()
 
     roomba_discovery = RoombaDiscovery()
-    roomba_info = roomba_discovery.find(roomba_ip)
+    roomba_info = roomba_discovery.get(roomba_ip)
     _validate_roomba_info(roomba_info)
 
     roomba_password = RoombaPassword(roomba_ip)
@@ -48,7 +48,7 @@ def connect():
     _validate_password(roomba_password)
 
     roomba_discovery = RoombaDiscovery()
-    roomba_info = roomba_discovery.find(roomba_ip)
+    roomba_info = roomba_discovery.get(roomba_ip)
     _validate_roomba_info(roomba_info)
 
     roomba = RoombaFactory.create_roomba(

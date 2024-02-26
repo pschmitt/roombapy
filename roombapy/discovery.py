@@ -25,13 +25,7 @@ class RoombaDiscovery:
         self.server_socket = _get_socket()
         self.log = logging.getLogger(__name__)
 
-    def find(self, ip=None):
-        """Find Roomba devices on the local network."""
-        if ip is not None:
-            return self.get(ip)
-        return self.get_all()
-
-    def get_all(self):
+    def get_all(self) -> set[RoombaInfo]:
         """Get all Roomba devices on the local network."""
         self._start_server()
         self._broadcast_message(self.amount_of_broadcasted_messages)

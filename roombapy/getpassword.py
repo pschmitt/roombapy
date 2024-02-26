@@ -34,7 +34,11 @@ class RoombaPassword:
 
     def get_password(self) -> str | None:
         """Get password for roomba."""
-        self._connect()
+
+        try:
+            self._connect()
+        except ConnectionRefusedError:
+            return None
         self._send_message()
         response = self._get_response()
         if response:
@@ -71,6 +75,7 @@ class RoombaPassword:
                 raw_data += response
                 if len(raw_data) >= 2:
                     response_length = struct.unpack("B", raw_data[1:2])[0]
+            self.server_socket.shutdown(socket.SHUT_RDWR)
             self.server_socket.close()
         except socket.timeout:
             self.log.warning("Socket timeout")
@@ -88,6 +93,6 @@ def _decode_password(data: bytes) -> str:
 
 def _get_socket() -> socket.socket:
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.settimeout(10)
+    server_socket.settimeout(3)
     context = generate_tls_context()
     return context.wrap_socket(server_socket)

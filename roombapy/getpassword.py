@@ -7,13 +7,14 @@ import struct
 
 from roombapy.remote_client import generate_tls_context
 
+PASSWORD_REQUEST = bytes.fromhex("f005efcc3b2900")
+
 
 class RoombaPassword:
     """Main class to get a password."""
 
     roomba_ip: str
     roomba_port: int = 8883
-    message: bytes = bytes.fromhex("f005efcc3b2900")
     server_socket: socket.socket
     log: logging.Logger
 
@@ -46,7 +47,7 @@ class RoombaPassword:
         )
 
     def _send_message(self) -> None:
-        self.server_socket.send(self.message)
+        self.server_socket.send(PASSWORD_REQUEST)
         self.log.debug("Message sent")
 
     def _get_response(self) -> bytes | None:

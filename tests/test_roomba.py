@@ -1,7 +1,7 @@
 """Test the Roomba class."""
 from roombapy import Roomba
 
-from tests.conftest import Message
+from tests.conftest import as_message
 
 
 def test_roomba_with_data(roomba: Roomba) -> None:
@@ -9,8 +9,7 @@ def test_roomba_with_data(roomba: Roomba) -> None:
     roomba.on_message(
         None,
         None,
-        Message(
-            "topic",
+        as_message(
             b'{"state":{"reported":{"cleanSchedule":{"cycle":["none",'
             b'"none","none","none","none","none","none"],"h":'
             b'[9,11,11,11,11,11,9],"m":[0,0,0,0,0,0,0]},"language":0'
@@ -24,9 +23,7 @@ def test_roomba_with_data(roomba: Roomba) -> None:
     )
     roomba.on_message(
         None,
-        None,
-        Message(
-            "topic",
+        as_message(
             b'{"state":{"reported":{"signal":{"rssi":-38,"snr":52}}}}',
         ),
     )

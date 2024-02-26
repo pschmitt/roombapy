@@ -1,6 +1,7 @@
 """Tools and fixtures for tests."""
 from dataclasses import dataclass
 
+import paho.mqtt.client as mqtt
 import pytest
 from roombapy import Roomba, RoombaFactory
 
@@ -21,6 +22,13 @@ class Message:
     topic: str
     payload: bytes
     qos: str = "qos"
+
+
+def as_message(payload: bytes, *, topic: bytes = b"test") -> mqtt.MQTTMessage:
+    """Craft MQTT message from bytes."""
+    message = mqtt.MQTTMessage(topic=topic)
+    message.payload = payload
+    return message
 
 
 @pytest.fixture()

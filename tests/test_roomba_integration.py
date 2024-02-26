@@ -25,7 +25,7 @@ async def test_roomba_connect_error(
     assert not is_connected
 
 
-async def roomba_connect(robot: Roomba, loop: BaseEventLoop) -> None:
+async def roomba_connect(robot: Roomba, loop: BaseEventLoop) -> bool:
     """Connect to the Roomba."""
     await loop.run_in_executor(None, robot.connect)
     await asyncio.sleep(1)

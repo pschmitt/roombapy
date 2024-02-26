@@ -55,5 +55,6 @@ def test_allow_approved_hostnames() -> None:
         decoded = _decode_data(
             TEST_ROOMBA_INFO.replace("hostname_placeholder", hostname).encode()
         )
+        assert decoded is not None
         assert decoded.hostname == hostname
         assert decoded.blid == blid

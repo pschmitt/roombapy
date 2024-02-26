@@ -10,7 +10,7 @@ from roombapy.const import MQTT_ERROR_MESSAGES, TransportErrorMessage
 
 MAX_CONNECTION_RETRIES = 3
 
-ConnectCallback = Callable[[TransportErrorMessage], None]
+ConnectionCallback = Callable[[TransportErrorMessage], None]
 
 UserData = Any
 ConnectFlags = dict[str, int]
@@ -44,8 +44,8 @@ class RoombaRemoteClient:
     password: str
     log: logging.Logger
     was_connected: bool = False
-    on_connect: ConnectCallback
-    on_disconnect: ConnectCallback
+    on_connect: ConnectionCallback
+    on_disconnect: ConnectionCallback
 
     def __init__(
         self, address: str, blid: str, password: str, port: int = 8883
@@ -62,7 +62,7 @@ class RoombaRemoteClient:
         """Set the on message callback."""
         self.mqtt_client.on_message = on_message
 
-    def set_on_connect(self, on_connect: ConnectCallback) -> None:
+    def set_on_connect(self, on_connect: ConnectionCallback) -> None:
         """Set the on connect callback."""
         self.on_connect = on_connect
 
@@ -74,7 +74,7 @@ class RoombaRemoteClient:
         """Set the on subscribe callback."""
         self.mqtt_client.on_subscribe = on_subscribe
 
-    def set_on_disconnect(self, on_disconnect: ConnectCallback) -> None:
+    def set_on_disconnect(self, on_disconnect: ConnectionCallback) -> None:
         """Set the on disconnect callback."""
         self.on_disconnect = on_disconnect
 

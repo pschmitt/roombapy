@@ -21,6 +21,11 @@ repos:
         language: system
         types: [python]
         entry: poetry run check-ast
+      - id: typing-mypy
+        name: 🐍 Check Mypy
+        language: system
+        types: [python]
+        entry: poetry run mypy
       - id: check-case-conflict
         name: 🔠 Check for case conflicts
         language: system

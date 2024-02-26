@@ -11,10 +11,10 @@ Fork of [NickWaterton/Roomba980-Python](https://github.com/NickWaterton/Roomba98
 
 This library was created for the [Home Assistant Roomba integration](https://www.home-assistant.io/integrations/roomba/).
 
-# Installation
+## Installation
 
 ```shell
-pip install roombapy
+pip install roombapy[cli]
 ```
 
 # Notes
@@ -23,28 +23,22 @@ This library is only for firmware 2.x.x [Check your robot version!](http://homes
 
 Only local connections are supported.
 
-# How to get your username/blid and password
-
-To get password from Roomba type in console:
+## How to discover your robots and obtain credentials
 
 ```shell
-$ roomba-password <ip>
+roombapy discover <optional ip address>
 ```
+This will find your Roomba in local network, and obtain credentials _automagically_ whether possible.
 
-It will find your Roomba in local network, then follow the instructions in console to get password.
-If IP address not provided password will be request for auto discovered robot.
+## Event stream
 
-Also you can just ask Roomba for info:
+To get event stream from iRobot, use:
 
 ```shell
-$ roomba-discovery <optional ip address>
+roombapy connect <ip> -p <password>
 ```
 
-To test connection with iRobot:
-
-```shell
-$ roomba-connect <ip> <password>
-```
+Output is suitable for piping into tools like `jq`.
 
 ## Development
 

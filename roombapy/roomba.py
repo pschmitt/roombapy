@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
 
 Program to connect to Roomba 980 vacuum cleaner, dcode json, and forward to mqtt

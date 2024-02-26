@@ -34,7 +34,6 @@ class RoombaPassword:
 
     def get_password(self) -> str | None:
         """Get password for roomba."""
-
         try:
             self._connect()
         except ConnectionRefusedError:

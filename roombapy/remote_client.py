@@ -44,12 +44,12 @@ class RoombaRemoteClient:
     password: str
     log: logging.Logger
     was_connected: bool = False
-    on_connect = None
-    on_disconnect = None
+    on_connect: ConnectCallback
+    on_disconnect: ConnectCallback
 
     def __init__(
         self, address: str, blid: str, password: str, port: int = 8883
-    ):
+    ) -> None:
         """Initialize the Roomba remote client."""
         self.address = address
         self.blid = blid

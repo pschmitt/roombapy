@@ -5,14 +5,12 @@ import paho.mqtt.client as mqtt
 import pytest
 from roombapy import Roomba, RoombaFactory
 
-ROOMBA_CONFIG = {
-    "host": "127.0.0.1",
-    "username": "test",
-    "password": "test",
-    "name": "Roomba",
-    "continuous": True,
-    "delay": 120,
-}
+ROOMBA_HOST = "127.0.0.1"
+ROOMBA_USERNAME = "test"
+ROOMBA_PASSWORD = "test"
+ROOMBA_NAME = "Roomba"
+ROOMBA_CONTINUOUS = True
+ROOMBA_DELAY = 120
 
 
 @dataclass
@@ -35,23 +33,23 @@ def as_message(payload: bytes, *, topic: bytes = b"test") -> mqtt.MQTTMessage:
 def roomba() -> Roomba:
     """Mock for robot."""
     return RoombaFactory.create_roomba(
-        address=ROOMBA_CONFIG["host"],
-        blid=ROOMBA_CONFIG["username"],
-        password=ROOMBA_CONFIG["password"],
-        continuous=ROOMBA_CONFIG["continuous"],
-        delay=ROOMBA_CONFIG["delay"],
+        address=ROOMBA_HOST,
+        blid=ROOMBA_USERNAME,
+        password=ROOMBA_PASSWORD,
+        continuous=ROOMBA_CONTINUOUS,
+        delay=ROOMBA_DELAY,
     )
 
 
 @pytest.fixture()
-def broken_roomba():
+def broken_roomba() -> Roomba:
     """Mock for robot with broken credentials."""
     return RoombaFactory.create_roomba(
-        address=ROOMBA_CONFIG["host"],
+        address=ROOMBA_HOST,
         blid="wrong",
-        password=ROOMBA_CONFIG["password"],
-        continuous=ROOMBA_CONFIG["continuous"],
-        delay=ROOMBA_CONFIG["delay"],
+        password=ROOMBA_PASSWORD,
+        continuous=ROOMBA_CONTINUOUS,
+        delay=ROOMBA_DELAY,
     )
 
 

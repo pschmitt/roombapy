@@ -1,6 +1,12 @@
 """Constants for roombapy."""
+from __future__ import annotations
 
-MQTT_ERROR_MESSAGES = {
+TransportErrorCode = int
+TransportErrorMessage = str | None
+ErrorCode = int
+ErrorMessage = str
+
+MQTT_ERROR_MESSAGES: dict[TransportErrorCode, TransportErrorMessage] = {
     0: None,
     1: "Bad protocol",
     2: "Bad client id",
@@ -11,7 +17,7 @@ MQTT_ERROR_MESSAGES = {
 }
 
 # iRobot_6.3.1-release.apk / res/values-en-rGB/strings.xml
-ROOMBA_ERROR_MESSAGES = {
+ROOMBA_ERROR_MESSAGES: dict[ErrorCode, ErrorMessage] = {
     0: "None",
     1: "Left wheel off floor",
     2: "Main brushes stuck",
@@ -128,7 +134,8 @@ ROOMBA_ERROR_MESSAGES = {
     1009: "Robot stalled",
 }
 
-ROOMBA_STATES = {
+State = str | None
+ROOMBA_STATES: dict[str, State] = {
     "charge": "Charging",
     "new": "New Mission",
     "run": "Running",

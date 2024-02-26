@@ -21,13 +21,33 @@ import threading
 import time
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import orjson
 
-from roombapy.const import ROOMBA_ERROR_MESSAGES, ROOMBA_STATES
+from roombapy.const import (
+    MQTT_ERROR_MESSAGES,
+    ROOMBA_ERROR_MESSAGES,
+    ROOMBA_STATES,
+    ErrorCode,
+    ErrorMessage,
+    State,
+    TransportErrorMessage,
+)
+
+if TYPE_CHECKING:
+    from paho.mqtt.client import Client, MQTTMessage
+
+    from roombapy.remote_client import RoombaRemoteClient
 
 MAX_CONNECTION_RETRIES = 3
+
+RoombaMessage = dict[str, Any]  # For now it's untyped
+MessageCallback = Callable[[RoombaMessage], None]
+ErrorCallback = Callable[[TransportErrorMessage], None]
+RobotPreference = (
+    str | int | dict[str, int]
+)  # Different settings that robots accept
 
 
 class RoombaConnectionError(Exception):
@@ -49,7 +69,13 @@ class Roomba:
     be decoded and published on the designated mqtt client topic.
     """
 
-    def __init__(self, remote_client, continuous=True, delay=1):
+    def __init__(
+        self,
+        remote_client: RoombaRemoteClient,
+        *,
+        continuous: bool = True,
+        delay: int = 1,
+    ) -> None:
         """Roomba client initialization."""
         self.log = logging.getLogger(__name__)
 
@@ -73,35 +99,36 @@ class Roomba:
         self.co_ords = {"x": 0, "y": 0, "theta": 180}
         self.cleanMissionStatus_phase = ""
         self.previous_cleanMissionStatus_phase = ""
-        self.current_state = None
+        self.current_state: State = None
         self.bin_full = False
-        self.master_state = {}  # all info from roomba stored here
+        # all info from roomba stored here
+        self.master_state: RoombaMessage = {}
         self.time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
         self._thread = threading.Thread(
             target=self.periodic_connection, name="roombapy"
         )
-        self.on_message_callbacks = []
-        self.on_disconnect_callbacks = []
-        self.error_code = None
-        self.error_message = None
-        self.client_error = None
+        self.on_message_callbacks: list[MessageCallback] = []
+        self.on_disconnect_callbacks: list[ErrorCallback] = []
+        self.error_code: ErrorCode | None = None
+        self.error_message: ErrorMessage | None = None
+        self.client_error: str | None = None
 
-    def register_on_message_callback(self, callback):
+    def register_on_message_callback(self, callback: MessageCallback) -> None:
         """Register a function to be called when a message is received."""
         self.on_message_callbacks.append(callback)
 
-    def register_on_disconnect_callback(self, callback):
+    def register_on_disconnect_callback(self, callback: ErrorCallback) -> None:
         """Register a function to be called when a disconnect occurs."""
         self.on_disconnect_callbacks.append(callback)
 
-    def _init_remote_client_callbacks(self):
+    def _init_remote_client_callbacks(self) -> None:
         """Initialize the remote client callbacks."""
         self.remote_client.set_on_message(self.on_message)
         self.remote_client.set_on_connect(self.on_connect)
         self.remote_client.set_on_disconnect(self.on_disconnect)
 
-    def connect(self):
+    def connect(self) -> None:
         """Connect to the Roomba."""
         if self.roomba_connected or self.periodic_connection_running:
             return
@@ -114,21 +141,21 @@ class Roomba:
 
         self.time = time.time()  # save connection time
 
-    def _connect(self):
+    def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
         if not is_connected:
             msg = f"Unable to connect to Roomba at {self.remote_client.address}"
             raise RoombaConnectionError(msg)
         return is_connected
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from the Roomba."""
         if self.continuous:
             self.remote_client.disconnect()
         else:
             self.stop_connection = True
 
-    def periodic_connection(self):
+    def periodic_connection(self) -> None:
         """Periodic connection to the Roomba."""
         # only one connection thread at a time!
         if self.periodic_connection_running:
@@ -139,14 +166,15 @@ class Roomba:
                 self._connect()
             except RoombaConnectionError as error:
                 self.periodic_connection_running = False
-                self.on_disconnect(error)
+                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
+                self.log.warning("Periodic connection lost due to %s", error)
                 return
             time.sleep(self.delay)
 
         self.remote_client.disconnect()
         self.periodic_connection_running = False
 
-    def on_connect(self, error):
+    def on_connect(self, error: TransportErrorMessage) -> None:
         """On connect callback."""
         self.log.info("Connecting to Roomba %s", self.remote_client.address)
         self.client_error = error
@@ -161,7 +189,7 @@ class Roomba:
         self.roomba_connected = True
         self.remote_client.subscribe(self.topic)
 
-    def on_disconnect(self, error):
+    def on_disconnect(self, error: TransportErrorMessage) -> None:
         """On disconnect callback."""
         self.roomba_connected = False
         self.client_error = error
@@ -180,7 +208,9 @@ class Roomba:
 
         self.log.info("Disconnected from Roomba %s", self.remote_client.address)
 
-    def on_message(self, _mosq, _obj, msg):
+    def on_message(
+        self, _client: Client, _userdata: Any, msg: MQTTMessage
+    ) -> None:
         """On message callback."""
         if self.exclude != "" and self.exclude in msg.topic:
             return
@@ -211,7 +241,9 @@ class Roomba:
         for callback in self.on_message_callbacks:
             callback(decoded_message)
 
-    def send_command(self, command, params=None):
+    def send_command(
+        self, command: str, params: dict[str, Any] | None = None
+    ) -> None:
         """Send a command to the Roomba."""
         if params is None:
             params = {}
@@ -232,7 +264,7 @@ class Roomba:
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
-    def set_preference(self, preference, setting):
+    def set_preference(self, preference: str, setting: RobotPreference) -> None:
         """Set a preference on the Roomba."""
         self.log.debug("Set preference: %s, %s", preference, setting)
         val = setting
@@ -248,16 +280,15 @@ class Roomba:
         self.log.debug("Publishing Roomba Setting : %s", str_command)
         self.remote_client.publish("delta", str_command)
 
-    def dict_merge(self, dct, merge_dct):
+    def dict_merge(self, dct: RoombaMessage, merge_dct: RoombaMessage) -> None:
         """Recursive dict merge.
 
         Inspired by :meth:``dict.update()``, instead
         of updating only top-level keys, dict_merge recurses down into dicts
         nested to an arbitrary depth, updating keys. The ``merge_dct`` is
         merged into ``dct``.
-        :param dct: dict onto which the merge is executed
-        :param merge_dct: dct merged into dct
-        :return: None
+
+        TODO: Do not mutate arguments!
         """
         for k in merge_dct:
             if (
@@ -269,7 +300,9 @@ class Roomba:
             else:
                 dct[k] = merge_dct[k]
 
-    def decode_topics(self, state, prefix=None):
+    def decode_topics(
+        self, state: RoombaMessage, prefix: str | None = None
+    ) -> None:
         """Decode json data dict and publish as individual topics.
 
         Publish to brokerFeedback/topic the keys are concatenated with _
@@ -332,7 +365,7 @@ class Roomba:
         if prefix is None:
             self.update_state_machine()
 
-    def update_state_machine(self, new_state=None):
+    def update_state_machine(self, new_state: State = None) -> None:
         """Roomba progresses through states (phases).
 
         Normal Sequence is "" -> charge -> run -> hmPostMsn -> charge
@@ -451,7 +484,7 @@ class Roomba:
             self.log.debug("State updated to: %s", self.current_state)
 
 
-def _decode_payload(raw_payload: bytes) -> dict[str, Any] | None:
+def _decode_payload(raw_payload: bytes) -> RoombaMessage | None:
     try:
         payload = raw_payload.decode()
         message = orjson.loads(payload)

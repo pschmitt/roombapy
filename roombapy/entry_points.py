@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Entry points for the roombapy package."""
 import logging
 import sys

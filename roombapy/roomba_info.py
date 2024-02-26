@@ -2,18 +2,28 @@
 from __future__ import annotations
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
+    # Ignored at runtime, but not by mypy
     from pydantic.v1 import (  # type: ignore[attr-defined]
         BaseModel,
         Field,
         field_validator,
     )
-except ImportError:
-    from pydantic import BaseModel, Field  # type: ignore[attr-defined]
-    from pydantic import (
-        validator as field_validator,  # type: ignore[attr-defined]
-    )
+else:
+    # Ignored by mypy, but not at runtime
+    try:
+        from pydantic.v1 import (  # type: ignore[attr-defined]
+            BaseModel,
+            Field,
+            field_validator,
+        )
+    except ImportError:
+        from pydantic import BaseModel, Field  # type: ignore[attr-defined]
+        from pydantic import (
+            validator as field_validator,  # type: ignore[attr-defined]
+        )
 
 
 class RoombaInfo(BaseModel):
@@ -28,7 +38,7 @@ class RoombaInfo(BaseModel):
     capabilities: dict[str, int] = Field(alias="cap")
     password: str | None = None
 
-    @field_validator("hostname")
+    @field_validator("hostname")  # type: ignore[misc]
     @classmethod
     def hostname_validator(cls, value: str) -> str:
         """Validate the hostname."""

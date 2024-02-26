@@ -2,12 +2,22 @@
 import logging
 import ssl
 from functools import cache
+from typing import Any, Callable
 
 import paho.mqtt.client as mqtt
 
-from roombapy.const import MQTT_ERROR_MESSAGES
+from roombapy.const import MQTT_ERROR_MESSAGES, TransportErrorMessage
 
 MAX_CONNECTION_RETRIES = 3
+
+ConnectCallback = Callable[[TransportErrorMessage], None]
+
+UserData = Any
+ConnectFlags = dict[str, int]
+OnConnect = Callable[[mqtt.Client, UserData, ConnectFlags, int], object]
+OnMessage = Callable[[mqtt.Client, UserData, mqtt.MQTTMessage], object]
+OnPublish = Callable[[mqtt.Client, UserData, int], object]
+OnSubscribe = Callable[[mqtt.Client, UserData, int, tuple[int]], object]
 
 
 @cache
@@ -28,16 +38,18 @@ def generate_tls_context() -> ssl.SSLContext:
 class RoombaRemoteClient:
     """Roomba remote client."""
 
-    address = None
-    port = None
-    blid = None
-    password = None
-    log = None
-    was_connected = False
+    address: str
+    port: int
+    blid: str
+    password: str
+    log: logging.Logger
+    was_connected: bool = False
     on_connect = None
     on_disconnect = None
 
-    def __init__(self, address, blid, password, port=8883):
+    def __init__(
+        self, address: str, blid: str, password: str, port: int = 8883
+    ):
         """Initialize the Roomba remote client."""
         self.address = address
         self.blid = blid
@@ -46,27 +58,27 @@ class RoombaRemoteClient:
         self.log = logging.getLogger(__name__)
         self.mqtt_client = self._get_mqtt_client()
 
-    def set_on_message(self, on_message):
+    def set_on_message(self, on_message: OnMessage) -> None:
         """Set the on message callback."""
         self.mqtt_client.on_message = on_message
 
-    def set_on_connect(self, on_connect):
+    def set_on_connect(self, on_connect: ConnectCallback) -> None:
         """Set the on connect callback."""
         self.on_connect = on_connect
 
-    def set_on_publish(self, on_publish):
+    def set_on_publish(self, on_publish: OnPublish) -> None:
         """Set the on publish callback."""
         self.mqtt_client.on_publish = on_publish
 
-    def set_on_subscribe(self, on_subscribe):
+    def set_on_subscribe(self, on_subscribe: OnSubscribe) -> None:
         """Set the on subscribe callback."""
         self.mqtt_client.on_subscribe = on_subscribe
 
-    def set_on_disconnect(self, on_disconnect):
+    def set_on_disconnect(self, on_disconnect: ConnectCallback) -> None:
         """Set the on disconnect callback."""
         self.on_disconnect = on_disconnect
 
-    def connect(self):
+    def connect(self) -> bool:
         """Connect to the Roomba."""
         attempt = 1
         while attempt <= MAX_CONNECTION_RETRIES:
@@ -87,19 +99,19 @@ class RoombaRemoteClient:
         self.log.error("Unable to connect to %s", self.address)
         return False
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from the Roomba."""
         self.mqtt_client.disconnect()
 
-    def subscribe(self, topic):
+    def subscribe(self, topic: str) -> None:
         """Subscribe to a topic."""
         self.mqtt_client.subscribe(topic)
 
-    def publish(self, topic, payload):
+    def publish(self, topic: str, payload: str) -> None:
         """Publish a message to a topic."""
         self.mqtt_client.publish(topic, payload)
 
-    def _open_mqtt_connection(self):
+    def _open_mqtt_connection(self) -> None:
         if not self.was_connected:
             self.mqtt_client.connect(self.address, self.port)
             self.was_connected = True
@@ -108,7 +120,7 @@ class RoombaRemoteClient:
             self.mqtt_client.reconnect()
         self.mqtt_client.loop_start()
 
-    def _get_mqtt_client(self):
+    def _get_mqtt_client(self) -> mqtt.Client:
         mqtt_client = mqtt.Client(client_id=self.blid)
         mqtt_client.username_pw_set(username=self.blid, password=self.password)
         mqtt_client.on_connect = self._internal_on_connect
@@ -121,33 +133,45 @@ class RoombaRemoteClient:
 
         return mqtt_client
 
-    def _internal_on_connect(self, _client, _userdata, _flags, rc):
+    def _internal_on_connect(
+        self,
+        _client: mqtt.Client,
+        _userdata: UserData,
+        _connect_flags: ConnectFlags,
+        reason_code: int,
+    ) -> None:
         self.log.debug(
-            "Connected to Roomba %s, response code = %s", self.address, rc
+            "Connected to Roomba %s, response code = %s",
+            self.address,
+            reason_code,
         )
-        connection_error = MQTT_ERROR_MESSAGES.get(rc)
+        connection_error = MQTT_ERROR_MESSAGES.get(reason_code)
         # If response code(rc) is 0 then connection was successful.
-        if rc != 0 and connection_error is None:
+        if reason_code != 0 and connection_error is None:
             self.log.warning(
                 "Unknown connection error: ID=%s."
                 "Kindly use https://github.com/pschmitt/roombapy/issues/new",
-                rc,
+                reason_code,
             )
             connection_error = "UNKNOWN_ERROR"
         if self.on_connect is not None:
             self.on_connect(connection_error)
 
-    def _internal_on_disconnect(self, _client, _userdata, rc):
+    def _internal_on_disconnect(
+        self, _client: mqtt.Client, _userdata: UserData, reason_code: int
+    ) -> None:
         self.log.debug(
-            "Disconnected from Roomba %s, response code = %s", self.address, rc
+            "Disconnected from Roomba %s, reason code = %s",
+            self.address,
+            reason_code,
         )
-        connection_error = MQTT_ERROR_MESSAGES.get(rc)
+        connection_error = MQTT_ERROR_MESSAGES.get(reason_code)
         # If response code(rc) is 0 then connection was successful.
-        if rc != 0 and connection_error is None:
+        if reason_code != 0 and connection_error is None:
             self.log.warning(
                 "Unknown disconnection error: ID=%s."
                 "Kindly use https://github.com/pschmitt/roombapy/issues/new",
-                rc,
+                reason_code,
             )
             connection_error = "UNKNOWN_ERROR"
         if self.on_disconnect is not None:

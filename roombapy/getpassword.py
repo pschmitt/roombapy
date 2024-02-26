@@ -8,6 +8,7 @@ import struct
 from roombapy.remote_client import generate_tls_context
 
 PASSWORD_REQUEST = bytes.fromhex("f005efcc3b2900")
+UNSUPPORTED_MAGIC = bytes.fromhex("f005efcc3b2903")
 
 
 class RoombaPassword:
@@ -61,6 +62,10 @@ class RoombaPassword:
                 response = self.server_socket.recv(1024)
 
                 if len(response) == 0:
+                    break
+
+                if response == UNSUPPORTED_MAGIC:
+                    # Password for this model can be obtained only from cloud
                     break
 
                 raw_data += response

@@ -53,3 +53,9 @@ def broken_roomba():
         continuous=ROOMBA_CONFIG["continuous"],
         delay=ROOMBA_CONFIG["delay"],
     )
+
+
+@pytest.fixture()
+def empty_mqtt_client() -> mqtt.Client:
+    """Mock for mqtt Client."""
+    return mqtt.Client(client_id="test")

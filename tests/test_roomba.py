@@ -1,13 +1,17 @@
 """Test the Roomba class."""
+
+import paho.mqtt.client as mqtt
 from roombapy import Roomba
 
 from tests.conftest import as_message
 
 
-def test_roomba_with_data(roomba: Roomba) -> None:
+def test_roomba_with_data(
+    roomba: Roomba, empty_mqtt_client: mqtt.Client
+) -> None:
     """Test Roomba with data."""
     roomba.on_message(
-        None,
+        empty_mqtt_client,
         None,
         as_message(
             b'{"state":{"reported":{"cleanSchedule":{"cycle":["none",'
@@ -22,6 +26,7 @@ def test_roomba_with_data(roomba: Roomba) -> None:
         ),
     )
     roomba.on_message(
+        empty_mqtt_client,
         None,
         as_message(
             b'{"state":{"reported":{"signal":{"rssi":-38,"snr":52}}}}',

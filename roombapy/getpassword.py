@@ -19,7 +19,7 @@ class RoombaPassword:
     server_socket: socket.socket
     log: logging.Logger
 
-    def __init__(self, roomba_ip: str):
+    def __init__(self, roomba_ip: str) -> None:
         """Init default values."""
         self.roomba_ip = roomba_ip
         self.server_socket = _get_socket()

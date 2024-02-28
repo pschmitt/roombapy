@@ -12,6 +12,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Networking"
 ]
+include=["roombapy/py.typed"]
 packages = [
     { include = "roombapy" },
 ]

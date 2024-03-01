@@ -114,7 +114,6 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-        pydantic-version: ["1", "2"]
       fail-fast: false
 
     steps:
@@ -145,9 +144,6 @@ jobs:
 
       - name: Install library
         run: poetry install --no-interaction
-
-      - name: Install specific pydantic version
-        run: poetry add pydantic@^${{ matrix.pydantic-version }}
 
       - name: Start Mosquitto
         uses: namoshek/mosquitto-github-action@v1

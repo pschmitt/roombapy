@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 import socket
 
-from pydantic import ValidationError
+from mashumaro import exceptions as merr
+from orjson import JSONDecodeError
 
-from roombapy.roomba_info import RoombaInfo
+from roombapy.roomba_info import RoombaInfo, validate_hostname
 
 
 class RoombaDiscovery:
@@ -93,10 +94,22 @@ def _decode_data(raw_response: bytes) -> RoombaInfo | None:
         return None
 
     try:
-        return RoombaInfo.parse_raw(data)
-    except ValidationError:
-        # Malformed json from robots
+        raw_info = RoombaInfo.from_json(data)
+        validate_hostname(raw_info.hostname)
+    except JSONDecodeError:
         return None
+    except (
+        merr.MissingField,
+        merr.UnserializableDataError,
+        merr.InvalidFieldValue,
+        merr.MissingDiscriminatorError,
+        merr.SuitableVariantNotFoundError,
+    ):
+        return None
+    except ValueError:
+        return None
+    else:
+        return raw_info
 
 
 def _get_socket() -> socket.socket:

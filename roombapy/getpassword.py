@@ -1,4 +1,5 @@
 """The class helps you to get password for your Roomba."""
+
 from __future__ import annotations
 
 import logging

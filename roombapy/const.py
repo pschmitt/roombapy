@@ -1,4 +1,5 @@
 """Constants for roombapy."""
+
 from __future__ import annotations
 
 TransportErrorCode = int

@@ -1,4 +1,5 @@
 """Test Roomba integration with the mocked device."""
+
 import asyncio
 from asyncio import BaseEventLoop
 

@@ -1,4 +1,5 @@
 """Test the decoding of the Roomba discovery messages."""
+
 from roombapy.discovery import RoombaDiscovery, _decode_data
 
 TEST_ROOMBA_INFO = """

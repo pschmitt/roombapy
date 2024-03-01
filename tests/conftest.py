@@ -1,4 +1,5 @@
 """Tools and fixtures for tests."""
+
 from dataclasses import dataclass
 
 import paho.mqtt.client as mqtt

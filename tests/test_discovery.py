@@ -1,4 +1,5 @@
 """Test for the discovery module."""
+
 from roombapy.discovery import RoombaDiscovery
 
 

@@ -1,4 +1,5 @@
 """Test the decoding of the Roomba messages."""
+
 from roombapy.roomba import _decode_payload
 
 

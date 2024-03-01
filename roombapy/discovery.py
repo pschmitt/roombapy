@@ -1,4 +1,5 @@
 """Module for discovering Roomba devices on the local network."""
+
 from __future__ import annotations
 
 import logging

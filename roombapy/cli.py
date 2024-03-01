@@ -1,4 +1,5 @@
 """CLI to manage Roomba vacuums and mops."""
+
 from __future__ import annotations
 
 import sys

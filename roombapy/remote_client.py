@@ -1,4 +1,5 @@
 """Roomba remote client."""
+
 import logging
 import ssl
 from functools import cache

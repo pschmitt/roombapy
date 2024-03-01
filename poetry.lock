@@ -131,7 +131,6 @@ files = [
 ]
 
 [package.dependencies]
-orjson = {version = "*", optional = true, markers = "extra == \"orjson\""}
 typing-extensions = ">=4.1.0"
 
 [package.extras]
@@ -661,4 +660,4 @@ cli = ["click", "tabulate"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "11bec1f757522c80e3f4ba3d89295e8d8e4b29454e5c474a522343802817c6cd"
+content-hash = "82c3185a6043d5b18fe25232a9c49b894c64b67f34ea2e539c3a1c9283cc4cd4"

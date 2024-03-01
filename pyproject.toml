@@ -24,7 +24,7 @@ roombapy = "roombapy.cli:cli"
 python = ">=3.10,<4.0"
 orjson = ">=3.9.13"
 paho-mqtt = "~1.6.1"
-mashumaro = {version = "3.12", extras = ["orjson"]}
+mashumaro = {version = "^3.12"}
 click = { version = "^8.1", optional = true }
 tabulate = { version = "^0.9", optional = true }
 

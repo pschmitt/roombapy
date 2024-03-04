@@ -6,7 +6,7 @@ import logging
 
 import requests
 
-from roombapy.cloud import models
+from roombapy.cloud.models import login as models
 
 logger = logging.getLogger(__name__)
 

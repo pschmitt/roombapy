@@ -1,4 +1,4 @@
-"""DTOs for cloud services."""
+"""DTOs for login."""
 
 from __future__ import annotations
 

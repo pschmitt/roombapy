@@ -70,11 +70,9 @@ ignore = [
 select = ["ALL"]
 [tool.ruff.lint.per-file-ignores]
 # There are reverse-engineered classes
-"roombapy/cloud/models/map/full.py" = [
-    # Ruff is too dumb to realize that function calls return proper Field instance
-    "RUF009",
-    "D101"
-]
+"roombapy/cloud/models/map/full.py" = ["RUF009", "D101"]
+"roombapy/cloud/aws.py" = ["PLR0913"]
+
 
 [tool.ruff.format]
 docstring-code-format = true

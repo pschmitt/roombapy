@@ -27,6 +27,7 @@ paho-mqtt = "~1.6.1"
 mashumaro = {version = "^3.12"}
 click = { version = "^8.1", optional = true }
 tabulate = { version = "^0.9", optional = true }
+requests = "^2.31.0"
 
 [tool.poetry.extras]
 cli = ["click", "tabulate"]
@@ -41,6 +42,7 @@ codespell = "^2.2.6"
 mypy = "^1.8"
 types-paho-mqtt = "~1.6.0"
 types-tabulate = "~0.9.0"
+types-requests = "^2.31.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -66,6 +68,11 @@ ignore = [
     "PLR0912",
 ]
 select = ["ALL"]
+[tool.ruff.lint.per-file-ignores]
+# There are reverse-engineered classes
+"roombapy/cloud/models/map/full.py" = ["RUF009", "D101"]
+"roombapy/cloud/aws.py" = ["PLR0913"]
+
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -75,6 +82,13 @@ follow_imports = "normal"
 strict_optional = true
 strict = true
 packages = ["roombapy", "tests"]
+
+[[tool.mypy.overrides]]
+module = "roombapy.cloud.models.map.full"
+disable_error_code = "assignment"
+[[tool.mypy.overrides]]
+module = "roombapy.cloud.models.serialization"
+disable_error_code = "no-any-return,type-arg,call-overload"
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

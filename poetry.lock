@@ -603,13 +603,13 @@ files = [
 
 [[package]]
 name = "types-paho-mqtt"
-version = "1.6.0.20240106"
+version = "1.6.0.20240321"
 description = "Typing stubs for paho-mqtt"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-paho-mqtt-1.6.0.20240106.tar.gz", hash = "sha256:6b486b9e4438c856cc0ac8312bf6a81c2bca1697bf36cde6d2ecddb44513550e"},
-    {file = "types_paho_mqtt-1.6.0.20240106-py3-none-any.whl", hash = "sha256:1d233c2c017a512ebbec24d6a90d94302767c75a33a7c2584a660eac7fade248"},
+    {file = "types-paho-mqtt-1.6.0.20240321.tar.gz", hash = "sha256:694eec160340f2a2b151237dcc3f107a63e1c4e5b8f9fcda0ba392049af9cbec"},
+    {file = "types_paho_mqtt-1.6.0.20240321-py3-none-any.whl", hash = "sha256:cd275c14f39363c2a0f8286ead9a46962e5421ebd477547b892ae016699f5a4a"},
 ]
 
 [[package]]

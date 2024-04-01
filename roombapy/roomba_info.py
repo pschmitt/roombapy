@@ -8,6 +8,8 @@ from functools import cached_property
 from mashumaro import field_options
 from mashumaro.mixins.orjson import DataClassORJSONMixin
 
+Capabilities = dict[str, int] | None
+
 
 @dataclass
 class RoombaInfo(DataClassORJSONMixin):
@@ -19,7 +21,7 @@ class RoombaInfo(DataClassORJSONMixin):
     mac: str
     robot_name: str = field(metadata=field_options(alias="robotname"))
     sku: str
-    capabilities: dict[str, int] = field(metadata=field_options(alias="cap"))
+    capabilities: Capabilities = field(metadata=field_options(alias="cap"))
     password: str | None = None
 
     @cached_property

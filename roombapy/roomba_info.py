@@ -8,7 +8,7 @@ from functools import cached_property
 from mashumaro import field_options
 from mashumaro.mixins.orjson import DataClassORJSONMixin
 
-Capabilities = dict[str, int] | None
+Capabilities = dict[str, int | None] | None
 
 
 @dataclass

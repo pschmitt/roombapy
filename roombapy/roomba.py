@@ -352,7 +352,7 @@ class Roomba:
                             "Error looking up Roomba error message: %s", e
                         )
                         self.error_message = (
-                            "Unknown Error number: %s" % mutable_value
+                            f"Unknown Error number: {mutable_value}"
                         )
                 if key == "cleanMissionStatus_phase":
                     self.previous_cleanMissionStatus_phase = (

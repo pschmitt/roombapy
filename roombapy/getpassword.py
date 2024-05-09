@@ -93,6 +93,6 @@ def _decode_password(data: bytes) -> str:
 
 def _get_socket() -> socket.socket:
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.settimeout(3)
+    server_socket.settimeout(10)
     context = generate_tls_context()
     return context.wrap_socket(server_socket)

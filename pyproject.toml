@@ -34,7 +34,7 @@ cli = ["click", "tabulate"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-asyncio = ">=0.23,<0.25"
-ruff = ">=0.5.0,<0.7"
+ruff = ">=0.5.0,<0.8"
 pre-commit = ">=3.6.2,<5.0.0"
 pre-commit-hooks = ">=4.5,<6.0"
 codespell = "^2.2.6"

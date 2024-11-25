@@ -7,11 +7,11 @@ from .roomba_factory import RoombaFactory
 from .roomba_info import RoombaInfo
 
 __all__ = [
-    "RoombaDiscovery",
-    "RoombaPassword",
     "Roomba",
     "RoombaConnectionError",
+    "RoombaDiscovery",
     "RoombaFactory",
     "RoombaInfo",
     "RoombaMessage",
+    "RoombaPassword",
 ]

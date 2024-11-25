@@ -446,11 +446,11 @@ class Roomba:
         ) and self.cleanMissionStatus_phase == "hmUsrDock":
             self.current_state = ROOMBA_STATES["cancelled"]
         elif (
-            (
+            ((
                 self.current_state
                 in (ROOMBA_STATES["hmUsrDock"], ROOMBA_STATES["cancelled"])
             )
-            and self.cleanMissionStatus_phase == "charge"
+            and self.cleanMissionStatus_phase == "charge")
             or (
                 self.current_state == ROOMBA_STATES["hmPostMsn"]
                 and self.cleanMissionStatus_phase == "charge"

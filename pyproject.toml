@@ -51,8 +51,6 @@ line-length = 80
 
 [tool.ruff.lint]
 ignore = [
-    "ANN101", # Self... explanatory
-    "ANN102", # cls... just as useless
     "ANN401", # Opinioated warning on disallowing dynamically typed expressions
     "B007",
     "C901",

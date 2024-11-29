@@ -142,7 +142,9 @@ class Roomba:
     def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
         if not is_connected:
-            msg = f"Unable to connect to Roomba at {self.remote_client.address}"
+            msg = (
+                f"Unable to connect to Roomba at {self.remote_client.address}"
+            )
             raise RoombaConnectionError(msg)
         return is_connected
 
@@ -204,7 +206,9 @@ class Roomba:
 
             return
 
-        self.log.info("Disconnected from Roomba %s", self.remote_client.address)
+        self.log.info(
+            "Disconnected from Roomba %s", self.remote_client.address
+        )
 
     def on_message(
         self, _client: Client, _userdata: Any, msg: MQTTMessage
@@ -262,7 +266,9 @@ class Roomba:
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
-    def set_preference(self, preference: str, setting: RobotPreference) -> None:
+    def set_preference(
+        self, preference: str, setting: RobotPreference
+    ) -> None:
         """Set a preference on the Roomba."""
         self.log.debug("Set preference: %s, %s", preference, setting)
         val = setting

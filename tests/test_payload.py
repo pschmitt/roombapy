@@ -31,6 +31,8 @@ def test_allow_valid_json() -> None:
     {"state": {"reported": {"signal": {"rssi": -45, "snr": 18, "noise": -63}}}}
     """
     decoded = {
-        "state": {"reported": {"signal": {"rssi": -45, "snr": 18, "noise": -63}}}
+        "state": {
+            "reported": {"signal": {"rssi": -45, "snr": 18, "noise": -63}}
+        }
     }
     assert _decode_payload(payload) == decoded

@@ -8,7 +8,9 @@ from roombapy import Roomba
 
 
 @pytest.mark.asyncio
-async def test_roomba_connect(roomba: Roomba, event_loop: BaseEventLoop) -> None:
+async def test_roomba_connect(
+    roomba: Roomba, event_loop: BaseEventLoop
+) -> None:
     """Connect to the Roomba."""
     is_connected = await roomba_connect(roomba, event_loop)
     await roomba_disconnect(roomba, event_loop)

@@ -27,6 +27,8 @@ paho-mqtt = "~1.6.1"
 mashumaro = {version = "^3.12"}
 click = { version = "^8.1", optional = true }
 tabulate = { version = "^0.9", optional = true }
+# python 3.13 compatibility
+typing_extensions = ">=4.12.0"
 
 [tool.poetry.extras]
 cli = ["click", "tabulate"]

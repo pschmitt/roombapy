@@ -6,9 +6,7 @@ from roombapy import Roomba
 from tests.conftest import as_message
 
 
-def test_roomba_with_data(
-    roomba: Roomba, empty_mqtt_client: mqtt.Client
-) -> None:
+def test_roomba_with_data(roomba: Roomba, empty_mqtt_client: mqtt.Client) -> None:
     """Test Roomba with data."""
     roomba.on_message(
         empty_mqtt_client,

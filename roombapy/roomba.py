@@ -1,6 +1,6 @@
 """Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
 
-Program to connect to Roomba 980 vacuum cleaner, dcode json, and forward to mqtt
+Program to connect to Roomba vacuum cleaners, dcode json, and forward to mqtt
 server.
 Nick Waterton 24th April 2017: V 1.0: Initial Release
 Nick Waterton 4th July   2017  V 1.1.1: Fixed MQTT protocol version, and map
@@ -63,8 +63,8 @@ class Roomba:
     The values received from the Roomba as stored in a dictionary called
     master_state, and can be accessed at any time, the contents are live, and
     will build with time after connection.
-    This is not needed if the forward to mqtt option is used, as the events will
-    be decoded and published on the designated mqtt client topic.
+    This is not needed if the forward to mqtt option is used, as the events
+    will be decoded and published on the designated mqtt client topic.
     """
 
     def __init__(

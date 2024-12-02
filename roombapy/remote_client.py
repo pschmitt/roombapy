@@ -91,8 +91,8 @@ class RoombaRemoteClient:
             )
             try:
                 self._open_mqtt_connection()
-            except Exception:
-                self.log.debug("Can't connect to %s", self.address)
+            except OSError:
+                self.log.exception("Can't connect to %s", self.address)
             else:
                 return True
             attempt += 1

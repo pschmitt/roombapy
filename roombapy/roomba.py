@@ -167,7 +167,7 @@ class Roomba:
             except RoombaConnectionError as error:
                 self.periodic_connection_running = False
                 self.on_disconnect(MQTT_ERROR_MESSAGES[7])
-                self.log.warning("Periodic connection lost due to %s", error)
+                self.log.debug("Periodic connection lost due to %s", error)
                 return
             time.sleep(self.delay)
 

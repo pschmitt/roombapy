@@ -122,7 +122,10 @@ class RoombaRemoteClient:
         self.mqtt_client.loop_start()
 
     def _get_mqtt_client(self) -> mqtt.Client:
-        mqtt_client = mqtt.Client(client_id=self.blid)
+        mqtt_client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
+            client_id=self.blid
+            )
         mqtt_client.username_pw_set(username=self.blid, password=self.password)
         mqtt_client.on_connect = self._internal_on_connect
         mqtt_client.on_disconnect = self._internal_on_disconnect

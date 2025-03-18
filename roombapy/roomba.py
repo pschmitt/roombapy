@@ -1,6 +1,6 @@
 """Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
 
-Program to connect to Roomba 980 vacuum cleaner, dcode json, and forward to mqtt
+Program to connect to Roomba vacuum cleaners, dcode json, and forward to mqtt
 server.
 Nick Waterton 24th April 2017: V 1.0: Initial Release
 Nick Waterton 4th July   2017  V 1.1.1: Fixed MQTT protocol version, and map
@@ -63,8 +63,8 @@ class Roomba:
     The values received from the Roomba as stored in a dictionary called
     master_state, and can be accessed at any time, the contents are live, and
     will build with time after connection.
-    This is not needed if the forward to mqtt option is used, as the events will
-    be decoded and published on the designated mqtt client topic.
+    This is not needed if the forward to mqtt option is used, as the events
+    will be decoded and published on the designated mqtt client topic.
     """
 
     def __init__(
@@ -142,7 +142,9 @@ class Roomba:
     def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
         if not is_connected:
-            msg = f"Unable to connect to Roomba at {self.remote_client.address}"
+            msg = (
+                f"Unable to connect to Roomba at {self.remote_client.address}"
+            )
             raise RoombaConnectionError(msg)
         return is_connected
 
@@ -166,7 +168,7 @@ class Roomba:
             except RoombaConnectionError as error:
                 self.periodic_connection_running = False
                 self.on_disconnect(MQTT_ERROR_MESSAGES[7])
-                self.log.warning("Periodic connection lost due to %s", error)
+                self.log.debug("Periodic connection lost due to %s", error)
                 return
             time.sleep(self.delay)
 
@@ -205,7 +207,9 @@ class Roomba:
 
             return
 
-        self.log.info("Disconnected from Roomba %s", self.remote_client.address)
+        self.log.info(
+            "Disconnected from Roomba %s", self.remote_client.address
+        )
 
     def on_message(
         self, _client: Client, _userdata: Any, msg: MQTTMessage
@@ -263,7 +267,9 @@ class Roomba:
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
-    def set_preference(self, preference: str, setting: RobotPreference) -> None:
+    def set_preference(
+        self, preference: str, setting: RobotPreference
+    ) -> None:
         """Set a preference on the Roomba."""
         self.log.debug("Set preference: %s, %s", preference, setting)
         val = setting
@@ -452,10 +458,9 @@ class Roomba:
                 in (ROOMBA_STATES["hmUsrDock"], ROOMBA_STATES["cancelled"])
             )
             and self.cleanMissionStatus_phase == "charge"
-            or (
-                self.current_state == ROOMBA_STATES["hmPostMsn"]
-                and self.cleanMissionStatus_phase == "charge"
-            )
+        ) or (
+            self.current_state == ROOMBA_STATES["hmPostMsn"]
+            and self.cleanMissionStatus_phase == "charge"
         ):
             self.current_state = ROOMBA_STATES["dockend"]
         elif (

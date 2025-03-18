@@ -30,7 +30,7 @@ def as_message(payload: bytes, *, topic: bytes = b"test") -> mqtt.MQTTMessage:
     return message
 
 
-@pytest.fixture()
+@pytest.fixture
 def roomba() -> Roomba:
     """Mock for robot."""
     return RoombaFactory.create_roomba(
@@ -42,7 +42,7 @@ def roomba() -> Roomba:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def broken_roomba() -> Roomba:
     """Mock for robot with broken credentials."""
     return RoombaFactory.create_roomba(
@@ -54,7 +54,7 @@ def broken_roomba() -> Roomba:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def empty_mqtt_client() -> mqtt.Client:
     """Mock for mqtt Client."""
     return mqtt.Client(client_id="test")

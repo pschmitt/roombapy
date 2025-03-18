@@ -7,7 +7,7 @@ import pytest
 from roombapy import Roomba
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_roomba_connect(
     roomba: Roomba, event_loop: BaseEventLoop
 ) -> None:
@@ -17,7 +17,7 @@ async def test_roomba_connect(
     assert is_connected
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 async def test_roomba_connect_error(
     broken_roomba: Roomba, event_loop: BaseEventLoop
 ) -> None:

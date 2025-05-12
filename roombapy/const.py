@@ -15,6 +15,7 @@ MQTT_ERROR_MESSAGES: dict[TransportErrorCode, TransportErrorMessage] = {
     4: "Bad username or password",
     5: "Not authorised",
     7: "The connection was lost",
+    16: "Client or broker did not communicate in the keepalive interval",
 }
 
 # iRobot_6.3.1-release.apk / res/values-en-rGB/strings.xml

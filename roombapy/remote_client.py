@@ -8,6 +8,7 @@ from typing import Any, Callable
 import paho.mqtt.client as mqtt
 
 from roombapy.const import MQTT_ERROR_MESSAGES, TransportErrorMessage
+from roombapy.roomba import RoombaConnectionError
 
 MAX_CONNECTION_RETRIES = 3
 
@@ -114,8 +115,14 @@ class RoombaRemoteClient:
 
     def _open_mqtt_connection(self) -> None:
         if not self.was_connected:
-            self.mqtt_client.connect(self.address, self.port)
-            self.was_connected = True
+            try:
+                self.mqtt_client.connect(self.address, self.port)
+                self.was_connected = True
+            except OSError as e:
+                error_msg = (
+                    f"Failed to connect to {self.address}:{self.port} - {e!s}"
+                )
+                raise RoombaConnectionError(error_msg) from e
         else:
             self.mqtt_client.loop_stop()
             self.mqtt_client.reconnect()

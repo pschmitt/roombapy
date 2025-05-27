@@ -15,6 +15,7 @@ MQTT_ERROR_MESSAGES: dict[TransportErrorCode, TransportErrorMessage] = {
     4: "Bad username or password",
     5: "Not authorised",
     7: "The connection was lost",
+    16: "Move Roomba to a flat surface, then press CLEAN to restart.",
 }
 
 # iRobot_6.3.1-release.apk / res/values-en-rGB/strings.xml

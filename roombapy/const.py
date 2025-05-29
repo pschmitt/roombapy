@@ -153,5 +153,6 @@ ROOMBA_STATES: dict[str, State] = {
     "hmPostMsn": "End Mission",
     "evac": "Emptying Bin",
     "chargingerror": "Base Unplugged",
+    "refill": "Refilling",
     "": None,
 }

@@ -20,7 +20,7 @@ jobs:
         run: pipx install poetry
       - name: 🏗 Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.0.0
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache: "poetry"
@@ -43,7 +43,7 @@ jobs:
         run: pipx install poetry
       - name: 🏗 Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.0.0
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache: "poetry"
@@ -70,7 +70,7 @@ jobs:
         run: pipx install poetry
       - name: 🏗 Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@v5.0.0
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache: "poetry"
@@ -117,7 +117,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 

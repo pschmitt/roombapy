@@ -5,10 +5,10 @@ from __future__ import annotations
 import sys
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
 import orjson
 

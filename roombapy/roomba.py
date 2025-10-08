@@ -17,9 +17,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import orjson
 

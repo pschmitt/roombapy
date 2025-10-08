@@ -60,7 +60,7 @@ class RoombaDiscovery:
                 if not response:
                     continue
                 return response
-        except socket.timeout:
+        except TimeoutError:
             self.log.info("Socket timeout")
             return None
 

@@ -77,7 +77,7 @@ class RoombaPassword:
                     response_length = struct.unpack("B", raw_data[1:2])[0]
             self.server_socket.shutdown(socket.SHUT_RDWR)
             self.server_socket.close()
-        except socket.timeout:
+        except TimeoutError:
             self.log.warning("Socket timeout")
             return None
         except OSError as e:

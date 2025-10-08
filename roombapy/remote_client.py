@@ -2,8 +2,9 @@
 
 import logging
 import ssl
+from collections.abc import Callable
 from functools import cache
-from typing import Any, Callable
+from typing import Any
 
 import paho.mqtt.client as mqtt
 

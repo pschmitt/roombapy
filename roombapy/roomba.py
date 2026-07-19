@@ -81,16 +81,14 @@ class Roomba:
         self._init_remote_client_callbacks()
         self.continuous = continuous
         if self.continuous:
-            self.log.debug("CONTINUOUS connection")
+            self.log.debug("CONTINUOUS connection mode")
         else:
-            self.log.debug("PERIODIC connection")
+            self.log.debug("TEMPORARY connection mode")
 
-        self.stop_connection = False
-        self.periodic_connection_running = False
+        self.temporary_connection_handler_running = False
         self.topic = "#"
         self.exclude = ""
         self.delay = delay
-        self.periodic_connection_duration = 10
         self.roomba_connected = False
         self.indent = 0
         self.master_indent = 0
@@ -101,11 +99,8 @@ class Roomba:
         self.bin_full = False
         # all info from roomba stored here
         self.master_state: RoombaMessage = {}
-        self.time = time.time()
+        self.last_update_time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
-        self._thread = threading.Thread(
-            target=self.periodic_connection, name="roombapy"
-        )
         self.on_message_callbacks: list[MessageCallback] = []
         self.on_disconnect_callbacks: list[ErrorCallback] = []
         self.error_code: ErrorCode | None = None
@@ -128,16 +123,11 @@ class Roomba:
 
     def connect(self) -> None:
         """Connect to the Roomba."""
-        if self.roomba_connected or self.periodic_connection_running:
+        if self.roomba_connected:
             return
 
-        if self.continuous:
-            self._connect()
-        else:
-            self._thread.daemon = True
-            self._thread.start()
-
-        self.time = time.time()  # save connection time
+        self._connect()
+        self.last_update_time = time.time()  # reset last update time
 
     def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
@@ -150,29 +140,17 @@ class Roomba:
 
     def disconnect(self) -> None:
         """Disconnect from the Roomba."""
-        if self.continuous:
-            self.remote_client.disconnect()
-        else:
-            self.stop_connection = True
-
-    def periodic_connection(self) -> None:
-        """Periodic connection to the Roomba."""
-        # only one connection thread at a time!
-        if self.periodic_connection_running:
-            return
-        self.periodic_connection_running = True
-        while not self.stop_connection:
-            try:
-                self._connect()
-            except RoombaConnectionError as error:
-                self.periodic_connection_running = False
-                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
-                self.log.debug("Periodic connection lost due to %s", error)
-                return
-            time.sleep(self.delay)
-
         self.remote_client.disconnect()
-        self.periodic_connection_running = False
+
+    def temporary_connection_handler(self) -> None:
+        """Singleton that disconnects from Roomba after configured delay expires."""
+        if self.temporary_connection_handler_running:
+            return
+
+        self.temporary_connection_handler_running = True
+        time.sleep(self.delay)
+        self.remote_client.disconnect()
+        self.temporary_connection_handler_running = False
 
     def on_connect(self, error: TransportErrorMessage) -> None:
         """On connect callback."""
@@ -188,6 +166,14 @@ class Roomba:
 
         self.roomba_connected = True
         self.remote_client.subscribe(self.topic)
+
+        if not self.continuous:
+            self.log.debug("Starting temporary connection handler thread")
+            thread = threading.Thread(
+                target=self.temporary_connection_handler, name="roombapy"
+            )
+            thread.daemon = True
+            thread.start()
 
     def on_disconnect(self, error: TransportErrorMessage) -> None:
         """On disconnect callback."""
@@ -234,10 +220,10 @@ class Roomba:
         self.decode_topics(decoded_message)
 
         # default every 5 minutes
-        if time.time() - self.time > self.update_seconds:
+        if time.time() - self.last_update_time > self.update_seconds:
             self.log.debug("Publishing master_state %s", client_ip)
             self.decode_topics(self.master_state)  # publish all values
-            self.time = time.time()
+            self.last_update_time = time.time()
 
         # call the callback functions
         for callback in self.on_message_callbacks:
@@ -263,6 +249,11 @@ class Roomba:
         str_command = orjson.dumps(
             roomba_command, option=orjson.OPT_NON_STR_KEYS
         ).decode("utf-8")
+
+        # Make sure we're connected before publishing
+        if not self.roomba_connected:
+            self._connect()
+
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
@@ -281,6 +272,11 @@ class Roomba:
         tmp = {preference: val}
         roomba_command = {"state": tmp}
         str_command = orjson.dumps(roomba_command).decode("utf-8")
+
+        # Make sure we're connected before publishing
+        if not self.roomba_connected:
+            self._connect()
+
         self.log.debug("Publishing Roomba Setting : %s", str_command)
         self.remote_client.publish("delta", str_command)
 

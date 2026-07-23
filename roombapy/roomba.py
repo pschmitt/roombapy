@@ -71,7 +71,7 @@ class Roomba:
         self,
         remote_client: RoombaRemoteClient,
         *,
-        continuous: bool = True,
+        mode: str = "continuous",
         delay: int = 1,
     ) -> None:
         """Roomba client initialization."""
@@ -79,18 +79,16 @@ class Roomba:
 
         self.remote_client = remote_client
         self._init_remote_client_callbacks()
-        self.continuous = continuous
-        if self.continuous:
-            self.log.debug("CONTINUOUS connection")
-        else:
-            self.log.debug("PERIODIC connection")
-
+        self.conn_mode = mode
+        self.log.debug("Connection mode: %s", self.conn_mode)
         self.stop_connection = False
         self.periodic_connection_running = False
+        self.adhoc_connection_running = False
+        self.adhoc_conn_on_sec = 60
+        self.adhoc_conn_off_sec = 59 * 60
         self.topic = "#"
         self.exclude = ""
         self.delay = delay
-        self.periodic_connection_duration = 10
         self.roomba_connected = False
         self.indent = 0
         self.master_indent = 0
@@ -101,7 +99,7 @@ class Roomba:
         self.bin_full = False
         # all info from roomba stored here
         self.master_state: RoombaMessage = {}
-        self.time = time.time()
+        self.last_update_time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
         self._thread = threading.Thread(
             target=self.periodic_connection, name="roombapy"
@@ -131,13 +129,13 @@ class Roomba:
         if self.roomba_connected or self.periodic_connection_running:
             return
 
-        if self.continuous:
+        if self.conn_mode in ["continuous", "adhoc"]:
             self._connect()
-        else:
+        elif self.conn_mode == "periodic":
             self._thread.daemon = True
             self._thread.start()
 
-        self.time = time.time()  # save connection time
+        self.last_update_time = time.time()  # reset last_update_time
 
     def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
@@ -150,7 +148,7 @@ class Roomba:
 
     def disconnect(self) -> None:
         """Disconnect from the Roomba."""
-        if self.continuous:
+        if self.conn_mode == "continuous":
             self.remote_client.disconnect()
         else:
             self.stop_connection = True
@@ -174,6 +172,40 @@ class Roomba:
         self.remote_client.disconnect()
         self.periodic_connection_running = False
 
+    def adhoc_connection_handler(self) -> None:
+        """Adhoc connection handler thread."""
+        # only one handler thread at a time!
+        if self.adhoc_connection_running:
+            return
+
+        self.adhoc_connection_running = True
+        time.sleep(
+            self.adhoc_conn_on_sec
+            if self.roomba_connected
+            else self.adhoc_conn_off_sec
+        )
+        if self.roomba_connected:
+            self.remote_client.disconnect()
+        else:
+            try:
+                self._connect()
+            except RoombaConnectionError as error:
+                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
+                self.log.debug("Adhoc connection lost due to %s", error)
+        self.adhoc_connection_running = False
+
+    def _init_adhoc_handler(self) -> None:
+        """Adhoc connection handler init."""
+        if self.conn_mode != "adhoc":
+            return
+
+        adhoc_thread = threading.Thread(
+            target=self.adhoc_connection_handler, name="roombapy"
+        )
+        adhoc_thread.daemon = True
+        adhoc_thread.start()
+        self.log.debug("Adhoc connection handler thread started")
+
     def on_connect(self, error: TransportErrorMessage) -> None:
         """On connect callback."""
         self.log.info("Connecting to Roomba %s", self.remote_client.address)
@@ -188,6 +220,7 @@ class Roomba:
 
         self.roomba_connected = True
         self.remote_client.subscribe(self.topic)
+        self._init_adhoc_handler()
 
     def on_disconnect(self, error: TransportErrorMessage) -> None:
         """On disconnect callback."""
@@ -209,6 +242,7 @@ class Roomba:
         self.log.info(
             "Disconnected from Roomba %s", self.remote_client.address
         )
+        self._init_adhoc_handler()
 
     def on_message(
         self, _client: Client, _userdata: Any, msg: MQTTMessage
@@ -234,10 +268,10 @@ class Roomba:
         self.decode_topics(decoded_message)
 
         # default every 5 minutes
-        if time.time() - self.time > self.update_seconds:
+        if time.time() - self.last_update_time > self.update_seconds:
             self.log.debug("Publishing master_state %s", client_ip)
             self.decode_topics(self.master_state)  # publish all values
-            self.time = time.time()
+            self.last_update_time = time.time()
 
         # call the callback functions
         for callback in self.on_message_callbacks:
@@ -263,6 +297,11 @@ class Roomba:
         str_command = orjson.dumps(
             roomba_command, option=orjson.OPT_NON_STR_KEYS
         ).decode("utf-8")
+
+        # Make sure we're connected before publishing
+        if not self.roomba_connected:
+            self._connect()
+
         self.log.debug("Publishing Roomba Command : %s", str_command)
         self.remote_client.publish("cmd", str_command)
 
@@ -281,6 +320,11 @@ class Roomba:
         tmp = {preference: val}
         roomba_command = {"state": tmp}
         str_command = orjson.dumps(roomba_command).decode("utf-8")
+
+        # Make sure we're connected before publishing
+        if not self.roomba_connected:
+            self._connect()
+
         self.log.debug("Publishing Roomba Setting : %s", str_command)
         self.remote_client.publish("delta", str_command)
 

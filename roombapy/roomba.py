@@ -71,7 +71,7 @@ class Roomba:
         self,
         remote_client: RoombaRemoteClient,
         *,
-        continuous: bool = True,
+        mode: str = "continuous",
         delay: int = 1,
     ) -> None:
         """Roomba client initialization."""
@@ -79,13 +79,13 @@ class Roomba:
 
         self.remote_client = remote_client
         self._init_remote_client_callbacks()
-        self.continuous = continuous
-        if self.continuous:
-            self.log.debug("CONTINUOUS connection mode")
-        else:
-            self.log.debug("TEMPORARY connection mode")
-
-        self.temporary_connection_handler_running = False
+        self.conn_mode = mode
+        self.log.debug("Connection mode: %s", self.conn_mode)
+        self.stop_connection = False
+        self.periodic_connection_running = False
+        self.adhoc_connection_running = False
+        self.adhoc_conn_on_sec = 60
+        self.adhoc_conn_off_sec = 59 * 60
         self.topic = "#"
         self.exclude = ""
         self.delay = delay
@@ -101,6 +101,9 @@ class Roomba:
         self.master_state: RoombaMessage = {}
         self.last_update_time = time.time()
         self.update_seconds = 300  # update with all values every 5 minutes
+        self._thread = threading.Thread(
+            target=self.periodic_connection, name="roombapy"
+        )
         self.on_message_callbacks: list[MessageCallback] = []
         self.on_disconnect_callbacks: list[ErrorCallback] = []
         self.error_code: ErrorCode | None = None
@@ -123,11 +126,16 @@ class Roomba:
 
     def connect(self) -> None:
         """Connect to the Roomba."""
-        if self.roomba_connected:
+        if self.roomba_connected or self.periodic_connection_running:
             return
 
-        self._connect()
-        self.last_update_time = time.time()  # reset last update time
+        if self.conn_mode in ["continuous", "adhoc"]:
+            self._connect()
+        elif self.conn_mode == "periodic":
+            self._thread.daemon = True
+            self._thread.start()
+
+        self.last_update_time = time.time()  # reset last_update_time
 
     def _connect(self) -> bool:
         is_connected = self.remote_client.connect()
@@ -140,17 +148,63 @@ class Roomba:
 
     def disconnect(self) -> None:
         """Disconnect from the Roomba."""
-        self.remote_client.disconnect()
+        if self.conn_mode == "continuous":
+            self.remote_client.disconnect()
+        else:
+            self.stop_connection = True
 
-    def temporary_connection_handler(self) -> None:
-        """Singleton that disconnects from Roomba after configured delay expires."""
-        if self.temporary_connection_handler_running:
+    def periodic_connection(self) -> None:
+        """Periodic connection to the Roomba."""
+        # only one connection thread at a time!
+        if self.periodic_connection_running:
+            return
+        self.periodic_connection_running = True
+        while not self.stop_connection:
+            try:
+                self._connect()
+            except RoombaConnectionError as error:
+                self.periodic_connection_running = False
+                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
+                self.log.debug("Periodic connection lost due to %s", error)
+                return
+            time.sleep(self.delay)
+
+        self.remote_client.disconnect()
+        self.periodic_connection_running = False
+
+    def adhoc_connection_handler(self) -> None:
+        """Adhoc connection handler thread."""
+        # only one handler thread at a time!
+        if self.adhoc_connection_running:
             return
 
-        self.temporary_connection_handler_running = True
-        time.sleep(self.delay)
-        self.remote_client.disconnect()
-        self.temporary_connection_handler_running = False
+        self.adhoc_connection_running = True
+        time.sleep(
+            self.adhoc_conn_on_sec
+            if self.roomba_connected
+            else self.adhoc_conn_off_sec
+        )
+        if self.roomba_connected:
+            self.remote_client.disconnect()
+        else:
+            try:
+                self._connect()
+            except RoombaConnectionError as error:
+                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
+                self.log.debug("Adhoc connection lost due to %s", error)
+        self.adhoc_connection_running = False
+
+    def _init_adhoc_handler(self) -> None:
+        """Adhoc connection handler init."""
+        if self.conn_mode != "adhoc":
+            return
+
+        adhoc_thread = threading.Thread(
+            target=self.adhoc_connection_handler, name="roombapy"
+        )
+        adhoc_thread.daemon = True
+        adhoc_thread.start()
+        self.log.debug("Adhoc connection handler thread started")
 
     def on_connect(self, error: TransportErrorMessage) -> None:
         """On connect callback."""
@@ -166,14 +220,7 @@ class Roomba:
 
         self.roomba_connected = True
         self.remote_client.subscribe(self.topic)
-
-        if not self.continuous:
-            self.log.debug("Starting temporary connection handler thread")
-            thread = threading.Thread(
-                target=self.temporary_connection_handler, name="roombapy"
-            )
-            thread.daemon = True
-            thread.start()
+        self._init_adhoc_handler()
 
     def on_disconnect(self, error: TransportErrorMessage) -> None:
         """On disconnect callback."""
@@ -195,6 +242,7 @@ class Roomba:
         self.log.info(
             "Disconnected from Roomba %s", self.remote_client.address
         )
+        self._init_adhoc_handler()
 
     def on_message(
         self, _client: Client, _userdata: Any, msg: MQTTMessage

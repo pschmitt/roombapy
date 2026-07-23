@@ -13,12 +13,12 @@ class RoombaFactory:
         blid: str,
         password: str,
         *,
-        continuous: bool = True,
+        mode: str = "continuous",
         delay: int = 1,
     ) -> Roomba:
         """Create a Roomba instance."""
         remote_client = _create_remote_client(address, blid, password)
-        return Roomba(remote_client, continuous=continuous, delay=delay)
+        return Roomba(remote_client, mode=mode, delay=delay)
 
 
 def _create_remote_client(

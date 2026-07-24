@@ -162,3 +162,7 @@ ROOMBA_STATES: dict[str, State] = {
     "completed": "Mission Complete",
     "": None,
 }
+
+_SENTINEL_UNSET = object()
+
+CONNECTION_MODES = ["continuous", "periodic", "adhoc"]

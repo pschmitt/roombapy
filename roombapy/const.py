@@ -156,3 +156,7 @@ ROOMBA_STATES: dict[str, State] = {
     "refill": "Refilling",
     "": None,
 }
+
+_SENTINEL_UNSET = object()
+
+CONNECTION_MODES = ["continuous", "periodic", "adhoc"]

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 import orjson
 
 from roombapy.const import (
+    CONNECTION_MODES,
     MQTT_ERROR_MESSAGES,
     ROOMBA_ERROR_MESSAGES,
     ROOMBA_STATES,
@@ -80,6 +81,9 @@ class Roomba:
         self.remote_client = remote_client
         self._init_remote_client_callbacks()
         self.conn_mode = mode
+        if self.conn_mode not in CONNECTION_MODES:
+            msg = f"Invalid connection mode {self.conn_mode!r};"
+            raise ValueError(msg)
         self.log.debug("Connection mode: %s", self.conn_mode)
         self.stop_connection = False
         self.periodic_connection_running = False
@@ -148,7 +152,7 @@ class Roomba:
 
     def disconnect(self) -> None:
         """Disconnect from the Roomba."""
-        if self.conn_mode == "continuous":
+        if self.conn_mode in ["continuous", "adhoc"]:
             self.remote_client.disconnect()
         else:
             self.stop_connection = True
@@ -299,7 +303,7 @@ class Roomba:
         ).decode("utf-8")
 
         # Make sure we're connected before publishing
-        if not self.roomba_connected:
+        if not self.remote_client.mqtt_client.is_connected():
             self._connect()
 
         self.log.debug("Publishing Roomba Command : %s", str_command)
@@ -322,7 +326,7 @@ class Roomba:
         str_command = orjson.dumps(roomba_command).decode("utf-8")
 
         # Make sure we're connected before publishing
-        if not self.roomba_connected:
+        if not self.remote_client.mqtt_client.is_connected():
             self._connect()
 
         self.log.debug("Publishing Roomba Setting : %s", str_command)

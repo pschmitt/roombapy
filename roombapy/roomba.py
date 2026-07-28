@@ -88,11 +88,10 @@ class Roomba:
         self.stop_connection = False
         self.periodic_connection_running = False
         self.adhoc_connection_running = False
-        self.adhoc_conn_on_sec = 60
-        self.adhoc_conn_off_sec = 59 * 60
+        self.adhoc_connection_duration = 10
         self.topic = "#"
         self.exclude = ""
-        self.delay = delay
+        self.delay = delay  # delay in seconds between automatic re-connections
         self.roomba_connected = False
         self.indent = 0
         self.master_indent = 0
@@ -136,6 +135,7 @@ class Roomba:
         if self.conn_mode in ["continuous", "adhoc"]:
             self._connect()
         elif self.conn_mode == "periodic":
+            self.stop_connection = False
             self._thread.daemon = True
             self._thread.start()
 
@@ -184,9 +184,9 @@ class Roomba:
 
         self.adhoc_connection_running = True
         time.sleep(
-            self.adhoc_conn_on_sec
+            self.adhoc_connection_duration
             if self.roomba_connected
-            else self.adhoc_conn_off_sec
+            else self.delay
         )
         if self.roomba_connected:
             self.remote_client.disconnect()

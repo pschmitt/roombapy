@@ -9,7 +9,7 @@ class RoombaFactory:
     """Allows you to create Roomba class to control your robot."""
 
     @staticmethod
-    def create_roomba(
+    def create_roomba(  # noqa: PLR0913
         address: str,
         blid: str,
         password: str,

@@ -126,7 +126,7 @@ class RoombaRemoteClient:
                 self.address,
                 mqtt.error_string(message_info.rc),
             )
-um
+
     def _open_mqtt_connection(self) -> None:
         if not self.was_connected:
             self.mqtt_client.connect(self.address, self.port)

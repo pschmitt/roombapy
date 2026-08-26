@@ -1,6 +1,6 @@
 """Test the decoding of the Roomba discovery messages."""
 
-from roombapy.discovery import RoombaDiscovery, _decode_data
+from roombapy.discovery import ROOMBA_MESSAGE, _decode_data
 
 TEST_ROOMBA_INFO = """
 {
@@ -22,7 +22,7 @@ def test_skip_garbage() -> None:
 
 def test_skip_own_messages() -> None:
     """Test skipping own messages."""
-    assert _decode_data(RoombaDiscovery.roomba_message.encode()) is None
+    assert _decode_data(ROOMBA_MESSAGE) is None
 
 
 def test_skip_broken_json() -> None:

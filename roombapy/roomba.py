@@ -1,502 +1,647 @@
-"""Python 3.* (thanks to pschmitt for adding Python 3 compatibility).
+"""Prototype async Roomba client — vertical slice.
 
-Program to connect to Roomba vacuum cleaners, dcode json, and forward to mqtt
-server.
-Nick Waterton 24th April 2017: V 1.0: Initial Release
-Nick Waterton 4th July   2017  V 1.1.1: Fixed MQTT protocol version, and map
-paths, fixed paho-mqtt tls changes
-Nick Waterton 5th July   2017  V 1.1.2: Minor fixes, CV version 3 .2 support
-Nick Waterton 7th July   2017  V1.2.0: Added -o option "roomOutline" allows
-enabling/disabling of room outline drawing, added auto creation of css/html
-files Nick Waterton 11th July  2017  V1.2.1: Quick (untested) fix for room
-outlines if you don't have OpenCV
+Not the finished v2. This exists to test whether the interface proposed in
+the design document survives contact with an implementation. It covers one
+path end to end: construct, connect, subscribe, receive, drive the state
+machine, reconnect, disconnect.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import inspect
 import logging
-import threading
+import random
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
+import aiomqtt
 import orjson
 
-from roombapy.const import (
-    MQTT_ERROR_MESSAGES,
-    ROOMBA_ERROR_MESSAGES,
-    ROOMBA_STATES,
-    ErrorCode,
-    ErrorMessage,
-    State,
-    TransportErrorMessage,
-)
+from roombapy.state import RoombaMessage, RoombaStateMachine
+from roombapy.tls import generate_tls_context
 
 if TYPE_CHECKING:
-    from paho.mqtt.client import Client, MQTTMessage
+    import ssl
 
-    from roombapy.remote_client import RoombaRemoteClient
+    from roombapy.const import ErrorCode, ErrorMessage, State
+    from roombapy.types import ReportedState
+
+__all__ = [
+    "MAX_CONNECTION_RETRIES",
+    "RoombaAuthError",
+    "RoombaClient",
+    "RoombaConnectionError",
+    "RoombaError",
+    "RoombaMessage",
+    "RoombaScopeError",
+    "TransportOptions",
+]
 
 MAX_CONNECTION_RETRIES = 3
+RECONNECT_BACKOFF_MIN = 1.0
+RECONNECT_BACKOFF_MAX = 60.0
+# Without jitter every robot in a household comes back in lockstep after a
+# router restart, which is the moment the network can least afford it.
+RECONNECT_BACKOFF_JITTER = 0.25
+# How long disconnect() waits for in-flight callbacks before cancelling.
+CALLBACK_DRAIN_TIMEOUT = 5.0
 
-RoombaMessage = dict[str, Any]  # For now it's untyped
-MessageCallback = Callable[[RoombaMessage], None]
-ErrorCallback = Callable[[TransportErrorMessage], None]
-RobotPreference = (
-    str | int | dict[str, int]
-)  # Different settings that robots accept
+# CONNACK codes meaning "your credentials are wrong": 4 and 5 in MQTT 3.1.1,
+# 134 and 135 in MQTT 5.
+AUTH_FAILURE_CODES = frozenset({4, 5, 134, 135})
+
+# Whether a command is scoped to selected rooms is decided by one thing only:
+# whether the `regions` array is present and non-empty. Null and empty are
+# treated identically by the robot — the key is omitted and the robot cleans
+# the whole house. `rid`/`region_id` are element fields inside the array, not
+# a top-level scope gate, and `command_type`/`operatingMode` are orthogonal.
+#
+# Verified against MissionCommand::toPayload in the vendor app: the emit is
+# gated on `regions != null && regions.length != 0`, and against field dumps
+# (i7+ with region_ids populated versus i3+ with an empty list).
+#
+# The failure this guards against is not a wrong reply but a robot that
+# leaves the dock and cleans an entire home when the caller asked for one
+# room.
+REGION_SCOPED_COMMANDS = frozenset({"start", "clean", "cleanRoom"})
+
+MessageCallback = Callable[[RoombaMessage], Awaitable[None] | None]
+ErrorCallback = Callable[[str | None], Awaitable[None] | None]
+ConnectionState = Literal["connected", "disconnected"]
+StateCallback = Callable[[ConnectionState, str | None], Awaitable[None] | None]
+Unsubscribe = Callable[[], None]
+RobotPreference = str | int | dict[str, int]
 
 
-class RoombaConnectionError(Exception):
-    """Roomba connection exception."""
+@dataclass(frozen=True, slots=True)
+class TransportOptions:
+    """Rarely-changed transport settings, kept out of the constructor."""
+
+    port: int = 8883
+    topic: str = "#"
+    tls_context: ssl.SSLContext | None = None
+    exclude: str = ""
+    update_seconds: int = 300
 
 
-class Roomba:
-    """Class for Roomba 900 series WiFi connected Vacuum cleaners.
+class RoombaError(Exception):
+    """Base class for errors raised by this client."""
 
-    Requires firmware version 2.0 and above (not V1.0). Tested with Roomba 980
-    username (blid) and password are required, and can be found using the
-    password() class above (or can be auto discovered)
-    Most of the underlying info was obtained from here:
-    https://github.com/koalazak/dorita980 many thanks!
-    The values received from the Roomba as stored in a dictionary called
-    master_state, and can be accessed at any time, the contents are live, and
-    will build with time after connection.
-    This is not needed if the forward to mqtt option is used, as the events
-    will be decoded and published on the designated mqtt client topic.
-    """
+
+class RoombaConnectionError(RoombaError):
+    """The robot could not be reached."""
+
+
+class RoombaAuthError(RoombaConnectionError):
+    """The robot rejected the credentials."""
+
+
+class RoombaScopeError(RoombaError, ValueError):
+    """A room-scoped command would have run over the whole house."""
+
+
+class RoombaClient:
+    """Async client for a local Roomba MQTT connection."""
 
     def __init__(
         self,
-        remote_client: RoombaRemoteClient,
+        address: str,
+        blid: str,
+        password: str,
         *,
-        continuous: bool = True,
-        delay: int = 1,
+        transport: TransportOptions | None = None,
     ) -> None:
-        """Roomba client initialization."""
+        """Store connection parameters; no I/O happens here."""
         self.log = logging.getLogger(__name__)
+        self.address = address
+        self.blid = blid
+        self.password = password
+        options = transport or TransportOptions()
+        self.port = options.port
+        self.topic = options.topic
+        self.exclude = options.exclude
+        self.update_seconds = options.update_seconds
+        self._tls_context = options.tls_context or generate_tls_context()
+        self._last_full_update = time.monotonic()
 
-        self.remote_client = remote_client
-        self._init_remote_client_callbacks()
-        self.continuous = continuous
-        if self.continuous:
-            self.log.debug("CONTINUOUS connection")
-        else:
-            self.log.debug("PERIODIC connection")
-
-        self.stop_connection = False
-        self.periodic_connection_running = False
-        self.topic = "#"
-        self.exclude = ""
-        self.delay = delay
-        self.periodic_connection_duration = 10
-        self.roomba_connected = False
-        self.indent = 0
-        self.master_indent = 0
-        self.co_ords = {"x": 0, "y": 0, "theta": 180}
-        self.cleanMissionStatus_phase = ""
-        self.previous_cleanMissionStatus_phase = ""
-        self.current_state: State = None
-        self.bin_full = False
-        # all info from roomba stored here
-        self.master_state: RoombaMessage = {}
-        self.time = time.time()
-        self.update_seconds = 300  # update with all values every 5 minutes
-        self._thread = threading.Thread(
-            target=self.periodic_connection, name="roombapy"
-        )
-        self.on_message_callbacks: list[MessageCallback] = []
-        self.on_disconnect_callbacks: list[ErrorCallback] = []
-        self.error_code: ErrorCode | None = None
-        self.error_message: ErrorMessage | None = None
+        self._state = RoombaStateMachine()
+        self._client: aiomqtt.Client | None = None
+        self._task: asyncio.Task[None] | None = None
+        self._first_connect: asyncio.Future[None] | None = None
+        self._connected = False
+        self._closing = False
         self.client_error: str | None = None
 
-    def register_on_message_callback(self, callback: MessageCallback) -> None:
-        """Register a function to be called when a message is received."""
-        self.on_message_callbacks.append(callback)
+        self._on_message: list[MessageCallback] = []
+        self._on_disconnect: list[ErrorCallback] = []
+        self._on_state: list[StateCallback] = []
+        self.auth_error: RoombaAuthError | None = None
+        self._pending_callbacks: set[asyncio.Task[None]] = set()
+        self._watchers: set[asyncio.Queue[RoombaMessage]] = set()
 
-    def register_on_disconnect_callback(self, callback: ErrorCallback) -> None:
-        """Register a function to be called when a disconnect occurs."""
-        self.on_disconnect_callbacks.append(callback)
+    # ------------------------------------------------------------------
+    # state
+    # ------------------------------------------------------------------
 
-    def _init_remote_client_callbacks(self) -> None:
-        """Initialize the remote client callbacks."""
-        self.remote_client.set_on_message(self.on_message)
-        self.remote_client.set_on_connect(self.on_connect)
-        self.remote_client.set_on_disconnect(self.on_disconnect)
+    @property
+    def master_state(self) -> RoombaMessage:
+        """Accumulated reported state, same shape as the threaded client."""
+        return self._state.master_state
 
-    def connect(self) -> None:
-        """Connect to the Roomba."""
-        if self.roomba_connected or self.periodic_connection_running:
-            return
+    @property
+    def reported(self) -> ReportedState:
+        """Typed view of the reported state — the same dict, checked.
 
-        if self.continuous:
-            self._connect()
-        else:
-            self._thread.daemon = True
-            self._thread.start()
+        Opt-in: ``master_state`` is unchanged and still ``dict[str, Any]``.
+        Coverage is partial by design; see ``roombapy.types``.
+        """
+        state: Any = self._state.master_state.get("state", {})
+        return cast("ReportedState", state.get("reported", {}))
 
-        self.time = time.time()  # save connection time
+    @property
+    def connected(self) -> bool:
+        """Whether a session is currently established."""
+        return self._connected
 
-    def _connect(self) -> bool:
-        is_connected = self.remote_client.connect()
-        if not is_connected:
+    @property
+    def current_state(self) -> State:
+        """Derived mission state."""
+        return self._state.current_state
+
+    @property
+    def co_ords(self) -> dict[str, Any]:
+        """Last reported pose, in the threaded client's shape."""
+        return self._state.co_ords
+
+    @property
+    def bin_full(self) -> bool:
+        """Whether the bin last reported itself full."""
+        return self._state.bin_full
+
+    @property
+    def cleanMissionStatus_phase(self) -> str:  # noqa: N802
+        """Current mission phase, verbatim from the robot."""
+        return self._state.cleanMissionStatus_phase
+
+    @property
+    def previous_cleanMissionStatus_phase(self) -> str:  # noqa: N802
+        """Mission phase before the current one."""
+        return self._state.previous_cleanMissionStatus_phase
+
+    @property
+    def error_code(self) -> ErrorCode | None:
+        """Last reported error code."""
+        return self._state.error_code
+
+    @property
+    def error_message(self) -> ErrorMessage | None:
+        """Last reported error message."""
+        return self._state.error_message
+
+    # ------------------------------------------------------------------
+    # subscriptions
+    # ------------------------------------------------------------------
+
+    def register_on_message_callback(
+        self, callback: MessageCallback
+    ) -> Unsubscribe:
+        """Register a message callback; returns a detach handle."""
+        self._on_message.append(callback)
+        return lambda: self._on_message.remove(callback)
+
+    def register_on_disconnect_callback(
+        self, callback: ErrorCallback
+    ) -> Unsubscribe:
+        """Register a disconnect callback; returns a detach handle."""
+        self._on_disconnect.append(callback)
+        return lambda: self._on_disconnect.remove(callback)
+
+    def register_on_connection_state_callback(
+        self, callback: StateCallback
+    ) -> Unsubscribe:
+        """Register for connection-state changes; returns a detach handle.
+
+        Fires on every transition, not only on loss, so a caller can mark an
+        entity unavailable and available again without inferring the second
+        half from the absence of the first.
+        """
+        self._on_state.append(callback)
+        return lambda: self._on_state.remove(callback)
+
+    async def watch(
+        self, *, maxsize: int = 100
+    ) -> AsyncIterator[RoombaMessage]:
+        """Yield messages as they arrive.
+
+        Each watcher gets its own queue, so a slow consumer cannot starve the
+        others or stall delivery. When a watcher falls ``maxsize`` messages
+        behind, its oldest message is dropped and the loss is logged — state
+        is cumulative, so the newest message is always the more useful one.
+        """
+        queue: asyncio.Queue[RoombaMessage] = asyncio.Queue(maxsize=maxsize)
+        self._watchers.add(queue)
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            self._watchers.discard(queue)
+
+    def _feed_watchers(self, message: RoombaMessage) -> None:
+        for queue in self._watchers:
+            if queue.full():
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    queue.get_nowait()
+                self.log.warning(
+                    "Watcher for Roomba %s fell behind; dropped a message",
+                    self.address,
+                )
+            with contextlib.suppress(asyncio.QueueFull):
+                queue.put_nowait(message)
+
+    # ------------------------------------------------------------------
+    # lifecycle
+    # ------------------------------------------------------------------
+
+    async def connect(self) -> None:
+        """Establish a session, or raise.
+
+        Returns once subscribed. Losing the session afterwards is handled by
+        the supervisor with backoff and does not surface here.
+
+        Against an unreachable host this takes around 18 seconds: three
+        attempts, each waiting out a TCP connect. Cancellation is clean, so
+        a caller that needs a tighter bound — a config flow, say — can wrap
+        this in ``asyncio.timeout`` and the client will tear itself down.
+        """
+        if self._task is not None:
             msg = (
-                f"Unable to connect to Roomba at {self.remote_client.address}"
+                f"Already connected to Roomba at {self.address}. "
+                f"Call disconnect() first if you need to reconnect, for "
+                f"instance with new credentials."
             )
-            raise RoombaConnectionError(msg)
-        return is_connected
+            raise RoombaError(msg)
 
-    def disconnect(self) -> None:
-        """Disconnect from the Roomba."""
-        if self.continuous:
-            self.remote_client.disconnect()
-        else:
-            self.stop_connection = True
+        loop = asyncio.get_running_loop()
+        self._closing = False
+        self._first_connect = loop.create_future()
+        self._task = loop.create_task(self._supervise())
 
-    def periodic_connection(self) -> None:
-        """Periodic connection to the Roomba."""
-        # only one connection thread at a time!
-        if self.periodic_connection_running:
-            return
-        self.periodic_connection_running = True
-        while not self.stop_connection:
+        try:
+            await self._first_connect
+        except BaseException:
+            await self.disconnect()
+            raise
+
+    async def disconnect(self) -> None:
+        """Tear the session down and stop reconnecting."""
+        self._closing = True
+        task, self._task = self._task, None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._connected = False
+
+        # Give callbacks already in flight a chance to finish. A consumer
+        # persisting state from one would otherwise lose it on unload.
+        pending = list(self._pending_callbacks)
+        if pending:
+            _finished, unfinished = await asyncio.wait(
+                pending, timeout=CALLBACK_DRAIN_TIMEOUT
+            )
+            for stuck in unfinished:
+                stuck.cancel()
+            if unfinished:
+                self.log.warning(
+                    "%d Roomba callback(s) did not finish within %.0fs and "
+                    "were cancelled",
+                    len(unfinished),
+                    CALLBACK_DRAIN_TIMEOUT,
+                )
+
+    async def __aenter__(self) -> Self:
+        """Connect on entry."""
+        await self.connect()
+        return self
+
+    async def __aexit__(self, *_exc: object) -> None:
+        """Disconnect on exit."""
+        await self.disconnect()
+
+    # ------------------------------------------------------------------
+    # supervisor
+    # ------------------------------------------------------------------
+
+    async def _supervise(self) -> None:
+        """Hold a session open, reconnecting with backoff when it drops."""
+        backoff = RECONNECT_BACKOFF_MIN
+        attempt = 0
+
+        while not self._closing:
             try:
-                self._connect()
-            except RoombaConnectionError as error:
-                self.periodic_connection_running = False
-                self.on_disconnect(MQTT_ERROR_MESSAGES[7])
-                self.log.debug("Periodic connection lost due to %s", error)
+                async with aiomqtt.Client(
+                    hostname=self.address,
+                    port=self.port,
+                    identifier=self.blid,
+                    username=self.blid,
+                    password=self.password,
+                    tls_context=self._tls_context,
+                    tls_insecure=True,
+                ) as client:
+                    self._client = client
+                    await client.subscribe(self.topic)
+                    self._connected = True
+                    self.client_error = None
+                    self.auth_error = None
+                    backoff = RECONNECT_BACKOFF_MIN
+                    attempt = 0
+                    self._resolve_first_connect(None)
+                    await self._notify_state(connected=True, error=None)
+                    self.log.info("Connected to Roomba %s", self.address)
+
+                    async for message in client.messages:
+                        self._handle_message(
+                            str(message.topic), bytes(message.payload or b"")
+                        )
+            except asyncio.CancelledError:
+                raise
+            except aiomqtt.MqttError as err:
+                attempt += 1
+                error = self._classify(err, attempt)
+                was_connected, self._connected = self._connected, False
+                if was_connected:
+                    await self._notify_state(connected=False, error=str(err))
+
+                if isinstance(error, RoombaAuthError):
+                    # Credentials do not fix themselves. Retrying here would
+                    # hammer the robot forever, and on some brokers repeated
+                    # bad logins are worth avoiding on their own.
+                    self.auth_error = error
+                    if not self._resolve_first_connect(error):
+                        # Not .exception(): the traceback adds nothing to
+                        # "the password is wrong", and this is a state the
+                        # user must act on, not a defect to report.
+                        self.log.error(  # noqa: TRY400
+                            "Roomba %s rejected the credentials; not "
+                            "retrying. Re-provision and reconnect.",
+                            self.address,
+                        )
+                        await self._notify_state(
+                            connected=False, error=str(error)
+                        )
+                    return
+
+                if error is not None and self._resolve_first_connect(error):
+                    return
+                await self._notify_disconnect(str(err))
+                self.log.warning(
+                    "Roomba %s connection lost (%s), retrying in %.0fs",
+                    self.address,
+                    err,
+                    backoff,
+                )
+            except Exception:
+                # Anything that is not a transport error — a malformed
+                # payload the state machine chokes on, a synchronous
+                # callback that raises — would otherwise escape this task
+                # and end it for good: no reconnect, no disconnect
+                # callback, and the exception sitting unretrieved until
+                # someone awaits the task. Treat it like a lost connection
+                # and come back.
+                was_connected, self._connected = self._connected, False
+                self.log.exception(
+                    "Unexpected error handling Roomba %s, reconnecting "
+                    "in %.0fs",
+                    self.address,
+                    backoff,
+                )
+                if was_connected:
+                    await self._notify_state(
+                        connected=False, error="internal error"
+                    )
+                    await self._notify_disconnect("internal error")
+            finally:
+                self._connected = False
+                self._client = None
+
+            if self._closing:
                 return
-            time.sleep(self.delay)
-
-        self.remote_client.disconnect()
-        self.periodic_connection_running = False
-
-    def on_connect(self, error: TransportErrorMessage) -> None:
-        """On connect callback."""
-        self.log.info("Connecting to Roomba %s", self.remote_client.address)
-        self.client_error = error
-        if error is not None:
-            self.log.error(
-                "Roomba %s connection error, code %s",
-                self.remote_client.address,
-                error,
+            await asyncio.sleep(
+                backoff * (1 + random.random() * RECONNECT_BACKOFF_JITTER)  # noqa: S311
             )
+            backoff = min(backoff * 2, RECONNECT_BACKOFF_MAX)
+
+    def _classify(
+        self, err: aiomqtt.MqttError, attempt: int
+    ) -> RoombaConnectionError | None:
+        """Turn a transport error into the exception connect() should raise."""
+        text = str(err)
+        self.client_error = text
+        if self._is_auth_failure(err):
+            return RoombaAuthError(
+                f"Roomba at {self.address} rejected the credentials"
+            )
+        if attempt >= MAX_CONNECTION_RETRIES:
+            return RoombaConnectionError(
+                f"Unable to connect to Roomba at {self.address}: {text}"
+            )
+        return None
+
+    @staticmethod
+    def _is_auth_failure(err: aiomqtt.MqttError) -> bool:
+        """Recognise a credential rejection from the broker's reason code.
+
+        MQTT 3.1.1 answers CONNACK 4 (bad username or password) or 5 (not
+        authorised); MQTT 5 answers 134 or 135. aiomqtt carries the code on
+        ``MqttCodeError.rc``, which is checked first — the string fallback
+        only covers transports that raise a bare ``MqttError``.
+        """
+        code = getattr(err, "rc", None)
+        value = getattr(code, "value", code)
+        if isinstance(value, int):
+            return value in AUTH_FAILURE_CODES
+        return "not authorized" in str(err).lower()
+
+    def _resolve_first_connect(self, error: BaseException | None) -> bool:
+        """Settle the future connect() is waiting on. True if it gave up."""
+        future = self._first_connect
+        if future is None or future.done():
+            return False
+        if error is None:
+            future.set_result(None)
+            return False
+        future.set_exception(error)
+        return True
+
+    # ------------------------------------------------------------------
+    # inbound
+    # ------------------------------------------------------------------
+
+    def _handle_message(self, topic: str, raw_payload: bytes) -> None:
+        """Decode one payload, advance state, then fan out to callbacks."""
+        if self.exclude and self.exclude in topic:
             return
 
-        self.roomba_connected = True
-        self.remote_client.subscribe(self.topic)
-
-    def on_disconnect(self, error: TransportErrorMessage) -> None:
-        """On disconnect callback."""
-        self.roomba_connected = False
-        self.client_error = error
-        if error is not None:
+        decoded = _decode_payload(raw_payload)
+        if decoded is None:
             self.log.warning(
-                "Unexpectedly disconnected from Roomba %s, code %s",
-                self.remote_client.address,
-                error,
+                "Got malformed message from %s: %r", self.address, raw_payload
             )
-
-            # call the callback functions
-            for callback in self.on_disconnect_callbacks:
-                callback(error)
-
             return
 
-        self.log.info(
-            "Disconnected from Roomba %s", self.remote_client.address
-        )
+        self._state.apply(decoded)
 
-    def on_message(
-        self, _client: Client, _userdata: Any, msg: MQTTMessage
+        # Periodically re-derive everything from the accumulated state, as the
+        # threaded client does. Deltas only carry what changed, so some
+        # derived values would otherwise never be revisited.
+        now = time.monotonic()
+        if now - self._last_full_update > self.update_seconds:
+            self.log.debug("Republishing master_state %s", self.address)
+            self._state.republish_all()
+            self._last_full_update = now
+
+        self._feed_watchers(decoded)
+
+        for callback in list(self._on_message):
+            self._dispatch(callback, decoded)
+
+    async def _notify_state(
+        self, *, connected: bool, error: str | None
     ) -> None:
-        """On message callback."""
-        if self.exclude != "" and self.exclude in msg.topic:
+        """Tell subscribers the connection state changed."""
+        state: ConnectionState = "connected" if connected else "disconnected"
+        for callback in list(self._on_state):
+            self._dispatch_two(callback, state, error)
+
+    def _dispatch_two(
+        self, callback: Callable[..., Any], state: str, error: str | None
+    ) -> None:
+        """Two-argument variant of _dispatch, for state callbacks."""
+        self._dispatch(lambda _ignored: callback(state, error), None)
+
+    async def _notify_disconnect(self, error: str | None) -> None:
+        for callback in list(self._on_disconnect):
+            self._dispatch(callback, error)
+
+    def _dispatch(self, callback: Callable[..., Any], payload: Any) -> None:
+        """Run a callback on the event loop.
+
+        An ``async def`` callback is dispatched as a task, so it yields at its
+        await points and the read loop carries on. A synchronous one runs
+        inline, because wrapping it in a task would change nothing: it never
+        yields, so it blocks the loop either way. Isolating it would need an
+        executor, which would break the guarantee that callbacks run on the
+        loop.
+        """
+        try:
+            result = callback(payload)
+        except Exception:
+            self.log.exception("Error in Roomba callback")
             return
-
-        if self.indent == 0:
-            self.master_indent = max(self.master_indent, len(msg.topic))
-
-        decoded_message = _decode_payload(msg.payload)
-        client_ip = self.remote_client.address
-
-        if decoded_message is None:
-            self.log.warning(
-                "Got malformed message from %s: %s", client_ip, msg
+        if inspect.isawaitable(result):
+            task = asyncio.get_running_loop().create_task(
+                _guard(result, self.log)
             )
-            return
+            # Keep a reference so the task is not garbage collected.
+            self._pending_callbacks.add(task)
+            task.add_done_callback(self._pending_callbacks.discard)
 
-        self.dict_merge(self.master_state, decoded_message)
-        self.log.debug("Received message from %s: %s", client_ip, msg)
-        self.decode_topics(decoded_message)
+    # ------------------------------------------------------------------
+    # outbound
+    # ------------------------------------------------------------------
 
-        # default every 5 minutes
-        if time.time() - self.time > self.update_seconds:
-            self.log.debug("Publishing master_state %s", client_ip)
-            self.decode_topics(self.master_state)  # publish all values
-            self.time = time.time()
-
-        # call the callback functions
-        for callback in self.on_message_callbacks:
-            callback(decoded_message)
-
-    def send_command(
+    async def send_command(
         self, command: str, params: dict[str, Any] | None = None
     ) -> None:
-        """Send a command to the Roomba."""
-        if params is None:
-            params = {}
+        """Send a command to the Roomba.
 
-        self.log.debug("Send command: %s", command)
-        roomba_command = {
+        Raises ``RoombaScopeError`` if ``params`` carries a ``regions`` key
+        that is null or empty. Such a payload does not mean "no rooms" to the
+        robot, it means "every room" — see ``REGION_SCOPED_COMMANDS``.
+        """
+        _check_region_scope(command, params)
+        roomba_command: dict[str, Any] = {
             "command": command,
             "time": int(datetime.timestamp(datetime.now())),
             "initiator": "localApp",
         }
-        roomba_command.update(params)
-
-        # params may contain non-string keys, so we need to use the orjson
-        # OPT_NON_STR_KEYS option
-        str_command = orjson.dumps(
+        roomba_command.update(params or {})
+        payload = orjson.dumps(
             roomba_command, option=orjson.OPT_NON_STR_KEYS
         ).decode("utf-8")
-        self.log.debug("Publishing Roomba Command : %s", str_command)
-        self.remote_client.publish("cmd", str_command)
+        await self._publish("cmd", payload)
 
-    def set_preference(
+    async def set_preference(
         self, preference: str, setting: RobotPreference
     ) -> None:
         """Set a preference on the Roomba."""
-        self.log.debug("Set preference: %s, %s", preference, setting)
-        val = setting
-        # Parse boolean string
+        value: RobotPreference | bool = setting
         if isinstance(setting, str):
             if setting.lower() == "true":
-                val = True
+                value = True
             elif setting.lower() == "false":
-                val = False
-        tmp = {preference: val}
-        roomba_command = {"state": tmp}
-        str_command = orjson.dumps(roomba_command).decode("utf-8")
-        self.log.debug("Publishing Roomba Setting : %s", str_command)
-        self.remote_client.publish("delta", str_command)
+                value = False
+        payload = orjson.dumps({"state": {preference: value}}).decode("utf-8")
+        await self._publish("delta", payload)
 
-    def dict_merge(self, dct: RoombaMessage, merge_dct: RoombaMessage) -> None:
-        """Recursive dict merge.
-
-        Inspired by :meth:``dict.update()``, instead
-        of updating only top-level keys, dict_merge recurses down into dicts
-        nested to an arbitrary depth, updating keys. The ``merge_dct`` is
-        merged into ``dct``.
-
-        TODO: Do not mutate arguments!
-        """
-        for k in merge_dct:
-            if (
-                k in dct
-                and isinstance(dct[k], dict)
-                and isinstance(merge_dct[k], Mapping)
-            ):
-                self.dict_merge(dct[k], merge_dct[k])
-            else:
-                dct[k] = merge_dct[k]
-
-    def decode_topics(
-        self, state: RoombaMessage, prefix: str | None = None
-    ) -> None:
-        """Decode json data dict and publish as individual topics.
-
-        Publish to brokerFeedback/topic the keys are concatenated with _
-        to make one unique topic name strings are expressively converted
-        to strings to avoid unicode representations
-        """
-        for key, value in state.items():
-            mutable_key = key
-            if isinstance(value, dict):
-                if prefix is None:
-                    self.decode_topics(value, key)
-                else:
-                    self.decode_topics(value, prefix + "_" + key)
-            else:
-                mutable_value = value
-                if isinstance(value, list):
-                    newlist = []
-                    for i in value:
-                        if isinstance(i, dict):
-                            for ki, vi in i.items():
-                                newlist.append((str(ki), vi))
-                        else:
-                            val = i
-                            if isinstance(i, str):
-                                val = str(i)
-                            newlist.append(val)
-                    mutable_value = newlist
-                if prefix is not None:
-                    mutable_key = prefix + "_" + key
-                # all data starts with this, so it's redundant
-                mutable_key = mutable_key.replace("state_reported_", "")
-                # save variables for drawing map
-                if mutable_key == "pose_theta":
-                    self.co_ords["theta"] = mutable_value
-                if mutable_key == "pose_point_x":  # x and y are reversed...
-                    self.co_ords["y"] = mutable_value
-                if mutable_key == "pose_point_y":
-                    self.co_ords["x"] = mutable_value
-                if mutable_key == "bin_full":
-                    self.bin_full = mutable_value
-                if mutable_key == "cleanMissionStatus_error":
-                    try:
-                        self.error_code = mutable_value
-                        self.error_message = ROOMBA_ERROR_MESSAGES[
-                            mutable_value
-                        ]
-                    except KeyError as e:
-                        self.log.warning(
-                            "Error looking up Roomba error message: %s", e
-                        )
-                        self.error_message = (
-                            f"Unknown Error number: {mutable_value}"
-                        )
-                if key == "cleanMissionStatus_phase":
-                    self.previous_cleanMissionStatus_phase = (
-                        self.cleanMissionStatus_phase
-                    )
-                    self.cleanMissionStatus_phase = mutable_value
-
-        if prefix is None:
-            self.update_state_machine()
-
-    def update_state_machine(self, new_state: State = None) -> None:
-        """Roomba progresses through states (phases).
-
-        Normal Sequence is "" -> charge -> run -> hmPostMsn -> charge
-        Mid mission recharge is "" -> charge -> run -> hmMidMsn -> charge
-                                   -> run -> hmPostMsn -> charge
-        Stuck is "" -> charge -> run -> hmPostMsn -> stuck
-                    -> run/charge/stop/hmUsrDock -> charge
-        Start program during run is "" -> run -> hmPostMsn -> charge
-
-        Need to identify a new mission to initialize map, and end of mission to
-        finalise map.
-        Assume  charge -> run = start of mission (init map)
-                stuck - > charge = init map
-        Assume hmPostMsn -> charge = end of mission (finalize map)
-        Anything else = continue with existing map
-        """
-        current_mission = self.current_state
-
+    async def _publish(self, topic: str, payload: str) -> None:
+        client = self._client
+        if client is None or not self._connected:
+            msg = f"Not connected to Roomba at {self.address}"
+            raise RoombaConnectionError(msg)
+        self.log.debug("Publishing to %s: %s", topic, payload)
         try:
-            if (
-                self.master_state["state"]["reported"]["cleanMissionStatus"][
-                    "mssnM"
-                ]
-                == "none"
-                and self.cleanMissionStatus_phase == "charge"
-                and self.current_state
-                in (ROOMBA_STATES["pause"], ROOMBA_STATES["recharge"])
-            ):
-                self.current_state = ROOMBA_STATES["cancelled"]
-        except KeyError:
-            pass
+            await client.publish(topic, payload)
+        except aiomqtt.MqttError as err:
+            # The check above is only a pre-check: the session can drop
+            # between it and the publish. Without this, aiomqtt's own
+            # exception type escapes a caller who was told to catch
+            # RoombaError, and arrives as an unhandled error instead.
+            msg = f"Failed to send to Roomba at {self.address}: {err}"
+            raise RoombaConnectionError(msg) from err
 
-        if (
-            self.current_state == ROOMBA_STATES["charge"]
-            and self.cleanMissionStatus_phase == "run"
-        ):
-            self.current_state = ROOMBA_STATES["new"]
-        elif (
-            self.current_state == ROOMBA_STATES["run"]
-            and self.cleanMissionStatus_phase == "hmMidMsn"
-        ):
-            self.current_state = ROOMBA_STATES["dock"]
-        elif (
-            self.current_state == ROOMBA_STATES["dock"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            self.current_state = ROOMBA_STATES["recharge"]
-        elif (
-            self.current_state == ROOMBA_STATES["recharge"]
-            and self.cleanMissionStatus_phase == "charge"
-            and self.bin_full
-        ):
-            self.current_state = ROOMBA_STATES["pause"]
-        elif (
-            self.current_state == ROOMBA_STATES["run"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            self.current_state = ROOMBA_STATES["recharge"]
-        elif (
-            self.current_state == ROOMBA_STATES["recharge"]
-            and self.cleanMissionStatus_phase == "run"
-        ):
-            self.current_state = ROOMBA_STATES["pause"]
-        elif (
-            self.current_state == ROOMBA_STATES["pause"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            self.current_state = ROOMBA_STATES["pause"]
-            # so that we will draw map and can update recharge time
-            current_mission = None
-        elif (
-            self.current_state == ROOMBA_STATES["charge"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            # so that we will draw map and can update charge status
-            current_mission = None
-        elif (
-            self.current_state
-            in (ROOMBA_STATES["stop"], ROOMBA_STATES["pause"])
-        ) and self.cleanMissionStatus_phase == "hmUsrDock":
-            self.current_state = ROOMBA_STATES["cancelled"]
-        elif (
-            (
-                self.current_state
-                in (ROOMBA_STATES["hmUsrDock"], ROOMBA_STATES["cancelled"])
-            )
-            and self.cleanMissionStatus_phase == "charge"
-        ) or (
-            self.current_state == ROOMBA_STATES["hmPostMsn"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            self.current_state = ROOMBA_STATES["dockend"]
-        elif (
-            self.current_state == ROOMBA_STATES["dockend"]
-            and self.cleanMissionStatus_phase == "charge"
-        ):
-            self.current_state = ROOMBA_STATES["charge"]
 
-        elif self.cleanMissionStatus_phase not in ROOMBA_STATES:
-            self.log.error(
-                "Can't find state %s in predefined Roomba states, "
-                "please create a new issue: "
-                "https://github.com/pschmitt/roombapy/issues/new",
-                self.cleanMissionStatus_phase,
-            )
-            self.current_state = None
-        else:
-            self.current_state = ROOMBA_STATES[self.cleanMissionStatus_phase]
+def _check_region_scope(command: str, params: dict[str, Any] | None) -> None:
+    """Refuse a room-scoped command whose region list would vanish.
 
-        if new_state is not None:
-            self.current_state = ROOMBA_STATES[new_state]
-            self.log.debug("Current state: %s", self.current_state)
+    The robot omits an absent or empty ``regions`` key and falls back to
+    cleaning everything. A caller that built an empty list — no rooms
+    selected, a filter that matched nothing, a lookup that failed — almost
+    certainly did not mean that, and there is no way to tell afterwards.
+    """
+    if params is None or "regions" not in params:
+        return
+    if command not in REGION_SCOPED_COMMANDS:
+        return
+    regions = params["regions"]
+    if regions:
+        return
+    msg = (
+        f"{command!r} carries an empty 'regions' list. The robot omits the "
+        f"key and cleans the whole house. Pass a non-empty list of "
+        f"{{'rid'|'region_id', 'type'}} elements, or drop the key entirely "
+        f"if a whole-house run is what you want."
+    )
+    raise RoombaScopeError(msg)
 
-        if self.current_state != current_mission:
-            self.log.debug("State updated to: %s", self.current_state)
+
+async def _guard(awaitable: Awaitable[Any], log: logging.Logger) -> None:
+    try:
+        await awaitable
+    except Exception:
+        log.exception("Error in Roomba callback")
 
 
 def _decode_payload(raw_payload: bytes) -> RoombaMessage | None:
     try:
-        payload = raw_payload.decode()
-        message = orjson.loads(payload)
-    except UnicodeDecodeError:
+        message = orjson.loads(raw_payload.decode())
+    except (UnicodeDecodeError, orjson.JSONDecodeError):
         return None
-    except orjson.JSONDecodeError:
-        return None
-
     if not isinstance(message, dict):
         return None
-
     return message

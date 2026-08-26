@@ -1,98 +1,110 @@
-"""The class helps you to get password for your Roomba."""
+"""Async retrieval of the local password from a Roomba.
+
+The robot must be on its dock and powered on. Press and hold HOME until a
+series of tones plays; release, and the Wi-Fi LED flashes. Then call
+``get_password``.
+
+Wire behaviour is unchanged from the blocking implementation: the same
+request magic, the same length-prefixed reply framing, the same handling of
+models that only serve the password from the cloud.
+"""
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
-import socket
+import ssl
 import struct
 
-from roombapy.remote_client import generate_tls_context
+from roombapy.tls import generate_tls_context
 
 PASSWORD_REQUEST = bytes.fromhex("f005efcc3b2900")
 UNSUPPORTED_MAGIC = bytes.fromhex("f005efcc3b2903")
+DEFAULT_PORT = 8883
+DEFAULT_TIMEOUT = 10.0
+HEADER_LENGTH = 2
+INITIAL_RESPONSE_LENGTH = 35
 
 
 class RoombaPassword:
-    """Main class to get a password."""
+    """Retrieve the local password from a Roomba in listening mode."""
 
-    roomba_ip: str
-    roomba_port: int = 8883
-    server_socket: socket.socket
-    log: logging.Logger
-
-    def __init__(self, roomba_ip: str) -> None:
-        """Init default values."""
+    def __init__(
+        self,
+        roomba_ip: str,
+        *,
+        port: int = DEFAULT_PORT,
+        tls_context: ssl.SSLContext | None = None,
+    ) -> None:
+        """Store connection parameters; no I/O happens here."""
         self.roomba_ip = roomba_ip
-        self.server_socket = _get_socket()
+        self.roomba_port = port
         self.log = logging.getLogger(__name__)
+        self._tls_context = tls_context or generate_tls_context()
 
-    """
-    Roomba have to be on Home Base powered on.
-    Press and hold HOME button until you hear series of tones.
-    Release button, Wi-Fi LED should be flashing
-    After that execute get_password method
-    """
+    async def get_password(
+        self,
+        timeout: float = DEFAULT_TIMEOUT,  # noqa: ASYNC109
+    ) -> str | None:
+        """Return the password, or None if the robot will not give one.
 
-    def get_password(self) -> str | None:
-        """Get password for roomba."""
+        ASYNC109 suggests the caller wrap this in ``asyncio.timeout``. That
+        would raise ``TimeoutError`` where this returns ``None`` — and "the
+        robot did not answer" is an ordinary outcome here, not an error: a
+        robot that is not in listening mode simply stays quiet.
+        """
         try:
-            self._connect()
-        except ConnectionRefusedError:
+            async with asyncio.timeout(timeout):
+                reader, writer = await asyncio.open_connection(
+                    self.roomba_ip, self.roomba_port, ssl=self._tls_context
+                )
+        except (ConnectionRefusedError, ssl.SSLError, OSError) as err:
+            self.log.debug("Could not connect: %s", err)
             return None
-        self._send_message()
-        response = self._get_response()
-        if response:
-            return _decode_password(response)
-        return None
-
-    def _connect(self) -> None:
-        self.server_socket.connect((self.roomba_ip, self.roomba_port))
-        self.log.debug(
-            "Connected to Roomba %s:%s", self.roomba_ip, self.roomba_port
-        )
-
-    def _send_message(self) -> None:
-        self.server_socket.send(PASSWORD_REQUEST)
-        self.log.debug("Message sent")
-
-    def _get_response(self) -> bytes | None:
-        try:
-            raw_data = b""
-            response_length = 35
-            while True:
-                if len(raw_data) >= response_length + 2:
-                    break
-
-                response = self.server_socket.recv(1024)
-
-                if len(response) == 0:
-                    break
-
-                if response == UNSUPPORTED_MAGIC:
-                    # Password for this model can be obtained only from cloud
-                    break
-
-                raw_data += response
-                if len(raw_data) >= 2:
-                    response_length = struct.unpack("B", raw_data[1:2])[0]
-            self.server_socket.shutdown(socket.SHUT_RDWR)
-            self.server_socket.close()
         except TimeoutError:
             self.log.warning("Socket timeout")
             return None
-        except OSError as e:
-            self.log.debug("Socket error: %s", e)
+
+        self.log.debug(
+            "Connected to Roomba %s:%s", self.roomba_ip, self.roomba_port
+        )
+        try:
+            async with asyncio.timeout(timeout):
+                writer.write(PASSWORD_REQUEST)
+                await writer.drain()
+                raw_data = await self._read_response(reader)
+        except TimeoutError:
+            self.log.warning("Socket timeout")
             return None
-        else:
-            return raw_data
+        except OSError as err:
+            self.log.debug("Socket error: %s", err)
+            return None
+        finally:
+            writer.close()
+            with contextlib.suppress(OSError, ssl.SSLError):
+                await writer.wait_closed()
+
+        if not raw_data:
+            return None
+        return _decode_password(raw_data)
+
+    async def _read_response(self, reader: asyncio.StreamReader) -> bytes:
+        """Read until the length prefix says the reply is complete."""
+        raw_data = b""
+        response_length = INITIAL_RESPONSE_LENGTH
+        while len(raw_data) < response_length + HEADER_LENGTH:
+            response = await reader.read(1024)
+            if not response:
+                break
+            if response == UNSUPPORTED_MAGIC:
+                # This model serves its password from the cloud only.
+                return b""
+            raw_data += response
+            if len(raw_data) >= HEADER_LENGTH:
+                response_length = struct.unpack("B", raw_data[1:2])[0]
+        return raw_data
 
 
 def _decode_password(data: bytes) -> str:
     return str(data[7:].decode().rstrip("\x00"))
-
-
-def _get_socket() -> socket.socket:
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.settimeout(10)
-    context = generate_tls_context()
-    return context.wrap_socket(server_socket)

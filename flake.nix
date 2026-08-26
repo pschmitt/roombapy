@@ -95,6 +95,7 @@
             shellHook = ''
               export REPO_ROOT="$(git rev-parse --show-toplevel)"
               echo "roombapy dev shell (uv2nix, $(python --version))"
+              pre-commit install --install-hooks >/dev/null
             '';
           };
         }

@@ -42,9 +42,32 @@ Output is suitable for piping into tools like `jq`.
 
 ## Development
 
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management and packaging.
+
+If you have [Nix](https://nixos.org) with flakes enabled, the quickest way to get a full
+dev environment (uv, a matching Python interpreter, and mosquitto for the integration
+tests) is:
+
+```shell
+nix develop
+```
+
+Otherwise, install [uv](https://docs.astral.sh/uv/getting-started/installation/) yourself
+and run:
+
+```shell
+uv sync --all-extras --dev
+```
+
 To improve your development experience, you can install pre-commit hooks via the following command.
 With every commit it will run a set of checks, making sure it meets the quality standards.
 
 ```shell
-pre-commit install
+uv run pre-commit install
+```
+
+Run the test suite with:
+
+```shell
+uv run pytest
 ```

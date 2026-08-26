@@ -1,52 +1,56 @@
-[tool.poetry]
+[project]
 name = "roombapy"
 version = "1.9.1"
 description = "Python program and library to control Wi-Fi enabled iRobot Roombas"
-authors = ["Philipp Schmitt <philipp@schmitt.co>"]
+authors = [{ name = "Philipp Schmitt", email = "philipp@schmitt.co" }]
 readme = "README.md"
 license = "MIT"
-repository = "https://github.com/pschmitt/roombapy"
+requires-python = ">=3.10"
 classifiers = [
     "Topic :: Software Development",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Networking"
 ]
-include=["roombapy/py.typed"]
-packages = [
-    { include = "roombapy" },
+dependencies = [
+    "orjson>=3.9.13",
+    "paho-mqtt>=1.6.1,<3.0.0",
+    "mashumaro>=3.12,<4.0",
+    # python 3.13 compatibility
+    "typing-extensions>=4.12.0",
 ]
 
-[tool.poetry.scripts]
+[project.optional-dependencies]
+cli = [
+    "click>=8.1,<9.0",
+    "tabulate>=0.9,<0.11",
+]
+
+[project.urls]
+Repository = "https://github.com/pschmitt/roombapy"
+
+[project.scripts]
 roombapy = "roombapy.cli:cli"
 
-[tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-orjson = ">=3.9.13"
-paho-mqtt = ">=1.6.1,<3.0.0"
-mashumaro = {version = "^3.12"}
-click = { version = "^8.1", optional = true }
-tabulate = { version = ">=0.9,<0.11", optional = true }
-# python 3.13 compatibility
-typing_extensions = ">=4.12.0"
-
-[tool.poetry.extras]
-cli = ["click", "tabulate"]
-
-[tool.poetry.group.dev.dependencies]
-pytest = ">=9,<10"
-pytest-asyncio = ">=1.0,<2.0"
-ruff = ">=0.5.0,<0.17"
-pre-commit = ">=3.6.2,<5.0.0"
-pre-commit-hooks = ">=4.5,<7.0"
-codespell = "^2.2.6"
-mypy = ">=1.8,<3.0"
-types-paho-mqtt = "~1.6.0"
-types-tabulate = ">=0.9,<0.11"
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "pytest-asyncio>=1.0,<2.0",
+    "ruff>=0.5.0,<0.17",
+    "pre-commit>=3.6.2,<5.0.0",
+    "pre-commit-hooks>=4.5,<7.0",
+    "codespell>=2.2.6,<3.0.0",
+    "mypy>=1.8,<3.0",
+    "types-paho-mqtt>=1.6.0,<1.7.0",
+    "types-tabulate>=0.9,<0.11",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
 
 [tool.ruff]
 line-length = 79

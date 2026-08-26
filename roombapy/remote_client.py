@@ -107,11 +107,25 @@ class RoombaRemoteClient:
 
     def subscribe(self, topic: str) -> None:
         """Subscribe to a topic."""
-        self.mqtt_client.subscribe(topic)
+        result_code, _ = self.mqtt_client.subscribe(topic)
+        if result_code != mqtt.MQTT_ERR_SUCCESS:
+            self.log.error(
+                "Failed to subscribe to topic %s on %s: %s",
+                topic,
+                self.address,
+                mqtt.error_string(result_code),
+            )
 
     def publish(self, topic: str, payload: str) -> None:
         """Publish a message to a topic."""
-        self.mqtt_client.publish(topic, payload)
+        message_info = self.mqtt_client.publish(topic, payload)
+        if message_info.rc != mqtt.MQTT_ERR_SUCCESS:
+            self.log.error(
+                "Failed to publish to topic %s on %s: %s",
+                topic,
+                self.address,
+                mqtt.error_string(message_info.rc),
+            )
 
     def _open_mqtt_connection(self) -> None:
         if not self.was_connected:

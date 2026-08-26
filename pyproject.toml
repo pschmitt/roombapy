@@ -1,6 +1,6 @@
 [project]
 name = "roombapy"
-version = "1.9.1"
+version = "1.9.2"
 description = "Python program and library to control Wi-Fi enabled iRobot Roombas"
 authors = [{ name = "Philipp Schmitt", email = "philipp@schmitt.co" }]
 readme = "README.md"

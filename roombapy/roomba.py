@@ -278,13 +278,24 @@ class RoombaClient:
         a caller that needs a tighter bound — a config flow, say — can wrap
         this in ``asyncio.timeout`` and the client will tear itself down.
         """
-        if self._task is not None:
+        if self._task is not None and not self._task.done():
             msg = (
                 f"Already connected to Roomba at {self.address}. "
-                f"Call disconnect() first if you need to reconnect, for "
-                f"instance with new credentials."
+                f"Call disconnect() first if you need to reconnect."
             )
             raise RoombaError(msg)
+
+        if self._task is not None:
+            # The supervisor has ended on its own — the auth path returns
+            # rather than retrying. Reconnecting is exactly what a caller
+            # should do after re-provisioning the robot, so clear the stale
+            # task instead of refusing. Retrieving the exception keeps
+            # asyncio from warning that it was never consumed.
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                self._task.exception()
+            self._task = None
+            self.auth_error = None
+            self.client_error = None
 
         loop = asyncio.get_running_loop()
         self._closing = False

@@ -158,3 +158,30 @@ async def test_send_without_socket_raises_a_library_error() -> None:
     discovery = RoombaDiscovery(bind_port=0)
     with pytest.raises(RoombaError, match="not open"):
         discovery._send("127.0.0.1")
+
+
+@pytest.mark.asyncio
+async def test_dead_endpoint_is_reopened() -> None:
+    """A closed socket must not be handed back as if it were usable.
+
+    asyncio closes the endpoint on a fatal socket error. Reusing the stale
+    protocol left _send calling into a dead transport, which surfaced as a
+    bare AttributeError out of the public API.
+    """
+    discovery = RoombaDiscovery(bind_port=0)
+    try:
+        protocol = await discovery._open()
+        assert discovery._transport is not None
+        discovery._transport.close()
+        await asyncio.sleep(0.1)
+        assert protocol.closed
+
+        # The next call must build a fresh endpoint rather than reuse it.
+        reopened = await discovery._open()
+        assert reopened is not protocol
+        assert not reopened.closed
+
+        # And discovery still works rather than raising AttributeError.
+        assert await discovery.get("127.0.0.1", timeout=0.5) is None
+    finally:
+        await discovery.aclose()

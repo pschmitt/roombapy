@@ -36,6 +36,7 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
     def __init__(self) -> None:
         """Prepare the queue replies are pushed onto."""
         self.replies: asyncio.Queue[tuple[bytes, str]] = asyncio.Queue()
+        self.closed = False
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Queue one reply."""
@@ -44,6 +45,14 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
     def error_received(self, exc: Exception) -> None:
         """Log transport-level errors without tearing the endpoint down."""
         logging.getLogger(__name__).debug("Discovery socket error: %s", exc)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        """Mark the endpoint dead so a stale one is never handed back."""
+        self.closed = True
+        if exc is not None:
+            logging.getLogger(__name__).debug(
+                "Discovery socket closed: %s", exc
+            )
 
 
 class RoombaDiscovery:
@@ -120,8 +129,16 @@ class RoombaDiscovery:
     # ------------------------------------------------------------------
 
     async def _open(self) -> _DiscoveryProtocol:
-        if self._protocol is not None:
+        # "Set" is not "usable": asyncio closes the endpoint on a fatal
+        # socket error, and handing the stale protocol back leaves _send
+        # calling into a dead transport, which surfaces as a bare
+        # AttributeError from the public API.
+        if self._protocol is not None and not self._protocol.closed:
             return self._protocol
+        if self._protocol is not None:
+            self.log.debug("Discovery endpoint had closed; reopening")
+            self._transport = None
+            self._protocol = None
         loop = asyncio.get_running_loop()
         transport, protocol = await loop.create_datagram_endpoint(
             _DiscoveryProtocol,

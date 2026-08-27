@@ -82,13 +82,29 @@ def pytest_runtest_makereport(
     report: pytest.TestReport = outcome.get_result()  # type: ignore[attr-defined]
     if report.outcome != "failed":
         return
+    report.sections.append(("broker diagnostics", _diagnostics(report)))
+
+
+def _diagnostics(report: pytest.TestReport) -> str:
+    """Gather what the broker was doing, never raising.
+
+    This runs on failures, so anything that escapes here replaces the real
+    failure with a hook error — the opposite of what a diagnostic is for.
+    Every read is guarded, including the outer one, because the value of
+    this text is never worth losing a test result over.
+    """
     lines = [
         f"broker on 8883: {_broker_state()}",
         f"phase: {report.when}",
     ]
-    log = _broker_log()
-    if log is not None:
-        tail = log.read_text().splitlines()[-15:]
-        lines.append("last broker log lines:")
-        lines.extend(f"  {line}" for line in tail)
-    report.sections.append(("broker diagnostics", "\n".join(lines)))
+    try:
+        log = _broker_log()
+        if log is not None:
+            # errors="replace" as well as the guard: the log can be
+            # rotated or truncated under us mid-read.
+            tail = log.read_text(errors="replace").splitlines()[-15:]
+            lines.append("last broker log lines:")
+            lines.extend(f"  {line}" for line in tail)
+    except Exception as err:  # noqa: BLE001
+        lines.append(f"could not read the broker log: {err!r}")
+    return "\n".join(lines)

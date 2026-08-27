@@ -20,6 +20,13 @@ from roombapy.roomba import (
 from tests.conftest import ROOMBA_HOST, ROOMBA_PASSWORD, ROOMBA_USERNAME
 
 
+async def _drop_session(client: RoombaClient) -> None:
+    """Tear the transport out from under the supervisor."""
+    transport = client._client
+    assert transport is not None
+    await transport.__aexit__(None, None, None)
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncIterator[RoombaClient]:
     """Yield a connected client, torn down afterwards."""
@@ -149,3 +156,37 @@ async def test_connect_can_be_bounded_by_the_caller() -> None:
 
     assert client._task is None
     assert not client.connected
+
+
+@pytest.mark.asyncio
+async def test_reconnect_after_auth_failure_is_allowed() -> None:
+    """Re-provisioning a robot must not require a disconnect() first.
+
+    The supervisor deliberately ends on an auth failure rather than
+    retrying, which leaves the task set but done. Refusing to connect on
+    that basis blocked the one recovery a caller actually wants — and the
+    error message named that very case as the reason to try.
+    """
+    # The failure has to happen mid-session: a first connect that fails
+    # cleans up after itself, so it would not exercise this at all.
+    client = RoombaClient(ROOMBA_HOST, ROOMBA_USERNAME, ROOMBA_PASSWORD)
+    await client.connect()
+
+    client.password = "wrong"
+    await _drop_session(client)
+
+    async with asyncio.timeout(15):
+        while client.auth_error is None:
+            await asyncio.sleep(0.1)
+
+    assert not client.connected
+    assert client._task is not None
+    assert client._task.done()
+
+    # Correct credentials, as after re-provisioning. No disconnect() first.
+    client.password = ROOMBA_PASSWORD
+    await client.connect()
+    assert client.connected
+    assert client.auth_error is None
+
+    await client.disconnect()

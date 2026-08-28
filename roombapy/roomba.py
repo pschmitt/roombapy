@@ -160,10 +160,11 @@ class Roomba:
         # only one connection thread at a time!
         if self.periodic_connection_running:
             return
-        self.periodic_connection_running = True
         while not self.stop_connection:
             try:
-                self._connect()
+                if not self.periodic_connection_running:
+                    self._connect()
+                    self.periodic_connection_running = True
             except RoombaConnectionError as error:
                 self.periodic_connection_running = False
                 self.on_disconnect(MQTT_ERROR_MESSAGES[7])

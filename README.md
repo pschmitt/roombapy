@@ -71,12 +71,16 @@ supervisor, because a wrong password does not become right by retrying.
 `reported` is a typed view of the same dictionary — no parsing, no copy:
 
 ```python
-robot.reported["cleanMissionStatus"]["phase"]  # checked by mypy
+robot.reported.get("cleanMissionStatus", {}).get("phase")  # checked by mypy
 robot.master_state["state"]["reported"]  # unchanged, still Any
 ```
 
-Coverage is deliberately partial. A key that is not declared is simply not
-typed, which is the right outcome for firmware-specific fields.
+`reported` is empty until the robot's first MQTT message arrives, so index
+it with `.get()` rather than `[]` right after `connect()` — the fields
+themselves are typed, but their presence is not guaranteed until a message
+has been received. Coverage is also deliberately partial beyond that: a key
+that is not declared is simply not typed, which is the right outcome for
+firmware-specific fields.
 
 ## Upgrading from 1.x
 

@@ -11,7 +11,7 @@ import asyncio
 import logging
 import socket
 from json import JSONDecodeError
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, cast
 
 from mashumaro import exceptions as merr
 
@@ -103,10 +103,10 @@ class RoombaDiscovery:
     ) -> RoombaInfo | None:
         """Return the Roomba at ``ip``, or None if it does not answer."""
         protocol = await self._open()
-        await self._resolve(ip)
+        resolved = await self._resolve(ip)
         self._send(ip)
         async for info, address in self._replies(protocol, timeout):
-            if address == ip:
+            if address == resolved:
                 return info
         return None
 
@@ -153,20 +153,27 @@ class RoombaDiscovery:
         self.log.debug("Socket server started, port %s", self.bind_port)
         return protocol
 
-    async def _resolve(self, address: str) -> None:
+    async def _resolve(self, address: str) -> str:
         """Fail fast on an address that cannot be resolved.
 
         Without this a typo in the hostname is indistinguishable from a
         robot that is switched off: the datagram never leaves, the error
         arrives on ``error_received`` where nobody is looking, and the
         caller waits out the whole window for a ``None``.
+
+        Returns the numeric address ``address`` resolves to, since replies
+        arrive tagged with the resolved source IP, not the original
+        hostname, and ``get()`` needs the former to recognise them.
         """
         loop = asyncio.get_running_loop()
         try:
-            await loop.getaddrinfo(address, self.port, type=socket.SOCK_DGRAM)
+            results = await loop.getaddrinfo(
+                address, self.port, type=socket.SOCK_DGRAM
+            )
         except OSError as err:
             msg = f"Cannot resolve {address}: {err}"
             raise RoombaConnectionError(msg) from err
+        return cast("str", results[0][4][0])
 
     def _send(self, address: str) -> None:
         if self._transport is None:

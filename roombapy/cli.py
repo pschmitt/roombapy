@@ -135,12 +135,17 @@ async def _connect(
     login = blid
     discovery = RoombaDiscovery()
     try:
-        bot = await discovery.get(ip)
+        bot, obtained = await asyncio.gather(
+            discovery.get(ip), RoombaPassword(ip).get_password()
+        )
+    except RoombaConnectionError as err:
+        click.echo(str(err), err=True)
+        return 1
     finally:
         await discovery.aclose()
 
     if bot is not None:
-        if obtained := await RoombaPassword(bot.ip).get_password():
+        if obtained:
             bot.password = obtained
         login = blid or bot.blid
         password = password or bot.password

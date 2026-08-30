@@ -9,8 +9,10 @@ it breaks real devices.
 from __future__ import annotations
 
 import ssl
+from functools import cache
 
 
+@cache
 def generate_tls_context() -> ssl.SSLContext:
     """Build the SSL context a Roomba will accept."""
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

@@ -143,6 +143,7 @@ class RoombaClient:
         self.auth_error: RoombaAuthError | None = None
         self._pending_callbacks: set[asyncio.Task[None]] = set()
         self._watchers: set[asyncio.Queue[RoombaMessage]] = set()
+        self._closed_event = asyncio.Event()
 
     # ------------------------------------------------------------------
     # state
@@ -247,7 +248,23 @@ class RoombaClient:
         self._watchers.add(queue)
         try:
             while True:
-                yield await queue.get()
+                get = asyncio.ensure_future(queue.get())
+                closed = asyncio.ensure_future(self._closed_event.wait())
+                try:
+                    done, pending = await asyncio.wait(
+                        {get, closed}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                except BaseException:
+                    get.cancel()
+                    closed.cancel()
+                    raise
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                if get not in done:
+                    return
+                yield get.result()
         finally:
             self._watchers.discard(queue)
 
@@ -299,6 +316,7 @@ class RoombaClient:
 
         loop = asyncio.get_running_loop()
         self._closing = False
+        self._closed_event = asyncio.Event()
         self._first_connect = loop.create_future()
         self._task = loop.create_task(self._supervise())
 
@@ -317,6 +335,7 @@ class RoombaClient:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._connected = False
+        self._closed_event.set()
 
         # Give callbacks already in flight a chance to finish. A consumer
         # persisting state from one would otherwise lose it on unload.
@@ -328,6 +347,7 @@ class RoombaClient:
             for stuck in unfinished:
                 stuck.cancel()
             if unfinished:
+                await asyncio.gather(*unfinished, return_exceptions=True)
                 self.log.warning(
                     "%d Roomba callback(s) did not finish within %.0fs and "
                     "were cancelled",
@@ -402,8 +422,8 @@ class RoombaClient:
                             "retrying. Re-provision and reconnect.",
                             self.address,
                         )
-                        await self._notify_state(
-                            connected=False, error=str(error)
+                        await self._notify_auth_failure(
+                            error, was_connected=was_connected
                         )
                     return
 
@@ -543,6 +563,22 @@ class RoombaClient:
     async def _notify_disconnect(self, error: str | None) -> None:
         for callback in list(self._on_disconnect):
             self._dispatch(callback, error)
+
+    async def _notify_auth_failure(
+        self, error: RoombaAuthError, *, was_connected: bool
+    ) -> None:
+        """Notify subscribers once for a terminal auth-failure teardown.
+
+        ``was_connected`` reflects the state at the moment the failure was
+        caught. If it was True, ``_supervise`` already sent the state
+        change for this transition, so only the disconnect notice is new
+        here. If it was False, nothing was connected to lose, so only the
+        state change — the first notice of this failure — is sent.
+        """
+        if not was_connected:
+            await self._notify_state(connected=False, error=str(error))
+        if was_connected:
+            await self._notify_disconnect(str(error))
 
     def _dispatch(self, callback: Callable[..., Any], payload: Any) -> None:
         """Run a callback on the event loop.

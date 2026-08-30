@@ -1,10 +1,11 @@
 """Tools and fixtures for tests."""
 
+import pathlib
+from collections.abc import Generator
 from dataclasses import dataclass
 
 import paho.mqtt.client as mqtt
 import pytest
-from roombapy import Roomba, RoombaFactory
 
 ROOMBA_HOST = "127.0.0.1"
 ROOMBA_USERNAME = "test"
@@ -30,31 +31,80 @@ def as_message(payload: bytes, *, topic: bytes = b"test") -> mqtt.MQTTMessage:
     return message
 
 
-@pytest.fixture
-def roomba() -> Roomba:
-    """Mock for robot."""
-    return RoombaFactory.create_roomba(
-        address=ROOMBA_HOST,
-        blid=ROOMBA_USERNAME,
-        password=ROOMBA_PASSWORD,
-        continuous=ROOMBA_CONTINUOUS,
-        delay=ROOMBA_DELAY,
+# --- diagnostics for the intermittent broker-dependent failures ------------
+#
+# A handful of runs have ended with four fixture errors and roughly twelve
+# extra seconds of runtime, then dozens of clean runs in a row. The cause is
+# not established: a broker-restart race was found and fixed, and the symptom
+# recurred afterwards, so that was not it.
+#
+# Rather than keep guessing, capture the evidence the next time it happens.
+
+# Where the broker writes, if it writes anywhere we can see. CI runs it in a
+# container and nix in a temporary directory, so absence is normal — the
+# diagnostics then report the listener state alone rather than failing.
+_BROKER_LOG_CANDIDATES = (
+    pathlib.Path("/var/log/mosquitto/mosquitto.log"),
+    pathlib.Path("mosquitto.log"),
+)
+
+
+def _broker_log() -> pathlib.Path | None:
+    """First readable broker log, or None."""
+    return next((p for p in _BROKER_LOG_CANDIDATES if p.exists()), None)
+
+
+def _broker_state() -> str:
+    """Whether anything is listening on 8883, without needing `ss`."""
+    try:
+        table = pathlib.Path("/proc/net/tcp").read_text()
+    except OSError:
+        return "unknown"
+    # 8883 == 0x22B3, state 0A == LISTEN.
+    listening = any(
+        ":22B3" in line and " 0A " in line for line in table.splitlines()
     )
+    return "listening" if listening else "NOT listening"
 
 
-@pytest.fixture
-def broken_roomba() -> Roomba:
-    """Mock for robot with broken credentials."""
-    return RoombaFactory.create_roomba(
-        address=ROOMBA_HOST,
-        blid="wrong",
-        password=ROOMBA_PASSWORD,
-        continuous=ROOMBA_CONTINUOUS,
-        delay=ROOMBA_DELAY,
-    )
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item,  # noqa: ARG001
+    call: pytest.CallInfo[None],  # noqa: ARG001
+) -> Generator[None, None, None]:
+    """On a failure, record what the broker was doing at that moment.
+
+    ``hookwrapper=True`` yields a result object, not the report itself —
+    unwrapping it with ``get_result()`` is required, and getting this wrong
+    makes pytest collect nothing at all rather than fail loudly.
+    """
+    outcome = yield
+    report: pytest.TestReport = outcome.get_result()  # type: ignore[attr-defined]
+    if report.outcome != "failed":
+        return
+    report.sections.append(("broker diagnostics", _diagnostics(report)))
 
 
-@pytest.fixture
-def empty_mqtt_client() -> mqtt.Client:
-    """Mock for mqtt Client."""
-    return mqtt.Client(client_id="test")
+def _diagnostics(report: pytest.TestReport) -> str:
+    """Gather what the broker was doing, never raising.
+
+    This runs on failures, so anything that escapes here replaces the real
+    failure with a hook error — the opposite of what a diagnostic is for.
+    Every read is guarded, including the outer one, because the value of
+    this text is never worth losing a test result over.
+    """
+    lines = [
+        f"broker on 8883: {_broker_state()}",
+        f"phase: {report.when}",
+    ]
+    try:
+        log = _broker_log()
+        if log is not None:
+            # errors="replace" as well as the guard: the log can be
+            # rotated or truncated under us mid-read.
+            tail = log.read_text(errors="replace").splitlines()[-15:]
+            lines.append("last broker log lines:")
+            lines.extend(f"  {line}" for line in tail)
+    except Exception as err:  # noqa: BLE001
+        lines.append(f"could not read the broker log: {err!r}")
+    return "\n".join(lines)

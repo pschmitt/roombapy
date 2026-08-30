@@ -40,6 +40,76 @@ roombapy connect <ip> -p <password>
 
 Output is suitable for piping into tools like `jq`.
 
+## Library usage
+
+```python
+import asyncio
+from roombapy import RoombaClient
+
+
+async def main() -> None:
+    async with RoombaClient("192.168.1.50", blid, password) as robot:
+        robot.register_on_message_callback(print)
+        await robot.send_command("start")
+        await asyncio.sleep(60)
+
+
+asyncio.run(main())
+```
+
+`connect()` either establishes a session or raises. Losing it afterwards is
+the library's problem, not yours: a supervised reconnect with exponential
+backoff runs until `disconnect()`. Register with
+`register_on_connection_state_callback` to reflect availability.
+
+A rejected credential is the exception — `RoombaAuthError` stops the
+supervisor, because a wrong password does not become right by retrying.
+
+### Typed state, if you want it
+
+`master_state` stays `dict[str, Any]`, exactly as before. Alongside it,
+`reported` is a typed view of the same dictionary — no parsing, no copy:
+
+```python
+robot.reported.get("cleanMissionStatus", {}).get("phase")  # checked by mypy
+robot.master_state["state"]["reported"]  # unchanged, still Any
+```
+
+`reported` is empty until the robot's first MQTT message arrives, so index
+it with `.get()` rather than `[]` right after `connect()` — the fields
+themselves are typed, but their presence is not guaranteed until a message
+has been received. Coverage is also deliberately partial beyond that: a key
+that is not declared is simply not typed, which is the right outcome for
+firmware-specific fields.
+
+## Upgrading from 1.x
+
+Version 2 is asynchronous throughout, and breaking.
+
+| 1.x | 2.0 |
+|---|---|
+| `RoombaFactory.create_roomba(...)` | `RoombaClient(address, blid, password)` |
+| `Roomba(remote_client, continuous=…, delay=…)` | `RoombaClient(...)`; `continuous`/`delay` are gone |
+| `RoombaRemoteClient` | internal; construct `RoombaClient` directly |
+| `roomba.connect()` / `.disconnect()` | `await` them |
+| `.send_command()` / `.set_preference()` | `await` them |
+| `roomba.roomba_connected` | `robot.connected` |
+| `RoombaDiscovery().get_all()` | `await` it; takes a `timeout` |
+| `RoombaPassword(ip).get_password()` | `await` it; takes a `timeout` |
+| `periodic_connection()`, `stop_connection` | removed with the thread |
+
+`master_state`, the state machine and every constant table are unchanged.
+
+Two behaviour changes worth knowing before you upgrade:
+
+- **Authentication failures raise.** In 1.x a rejected password arrived via
+  `on_connect` and merely left `roomba_connected` False, so callers polled a
+  flag. `connect()` now raises `RoombaAuthError`.
+- **Room-scoped commands are checked.** `send_command("start", {"regions":
+  []})` raises `RoombaScopeError`. An empty list does not mean "no rooms" to
+  the robot — it means the key is omitted and the whole house is cleaned.
+  Omit `regions` entirely if that is what you want.
+
 ## Development
 
 This project uses [uv](https://docs.astral.sh/uv/) for dependency management and packaging.

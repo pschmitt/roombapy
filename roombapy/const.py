@@ -155,5 +155,10 @@ ROOMBA_STATES: dict[str, State] = {
     "evac": "Emptying Bin",
     "chargingerror": "Base Unplugged",
     "refill": "Refilling",
+    # Present in the robot firmware's phase enum but absent here until now.
+    # An unlisted phase falls through update_state_machine into the branch
+    # that logs "please create a new issue", so the gap is user-visible.
+    "spot": "Spot Cleaning",
+    "completed": "Mission Complete",
     "": None,
 }

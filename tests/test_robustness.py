@@ -15,6 +15,7 @@ from roombapy.roomba import (
     RoombaClient,
     RoombaConnectionError,
     RoombaError,
+    TransportOptions,
 )
 
 from tests.conftest import ROOMBA_HOST, ROOMBA_PASSWORD, ROOMBA_USERNAME
@@ -190,3 +191,53 @@ async def test_reconnect_after_auth_failure_is_allowed() -> None:
     assert client.auth_error is None
 
     await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_is_idempotent() -> None:
+    """Handles land in finally blocks; a second call must not raise.
+
+    list.remove raises ValueError when the callback is already gone, which
+    turns a tidy-up path into a second failure.
+    """
+    client = RoombaClient(ROOMBA_HOST, ROOMBA_USERNAME, ROOMBA_PASSWORD)
+
+    def noop(_payload: object) -> None:
+        return
+
+    for register in (
+        client.register_on_message_callback,
+        client.register_on_disconnect_callback,
+        client.register_on_connection_state_callback,
+    ):
+        unsubscribe = register(noop)  # type: ignore[arg-type]
+        unsubscribe()
+        unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_failed_first_connect_reports_no_disconnect() -> None:
+    """Retries during the initial connect are not losses.
+
+    A consumer would otherwise mark an entity unavailable that had never
+    been available in the first place.
+    """
+    client = RoombaClient(
+        ROOMBA_HOST,
+        ROOMBA_USERNAME,
+        ROOMBA_PASSWORD,
+        transport=TransportOptions(port=8884),
+    )
+    disconnects: list[str | None] = []
+    states: list[str] = []
+    client.register_on_disconnect_callback(disconnects.append)
+    client.register_on_connection_state_callback(
+        lambda state, _error: states.append(state)
+    )
+
+    with pytest.raises(RoombaConnectionError):
+        await client.connect()
+    await asyncio.sleep(0.3)
+
+    assert disconnects == []
+    assert states == []

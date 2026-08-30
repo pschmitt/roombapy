@@ -49,7 +49,7 @@ class RoombaStateMachine:
     def dict_merge(self, dct: RoombaMessage, merge_dct: RoombaMessage) -> None:
         """Recursive dict merge.
 
-        Inspired by :meth:``dict.update()``, instead
+        Inspired by :meth:`dict.update`, instead
         of updating only top-level keys, dict_merge recurses down into dicts
         nested to an arbitrary depth, updating keys. The ``merge_dct`` is
         merged into ``dct``.

@@ -689,10 +689,16 @@ class TestTwoWatchersDoNotDoublePoll:
     which is the exact thing one shared poller exists to prevent.
     """
 
-    def test_the_second_restart_is_a_no_op(self) -> None:
-        """Only the watcher that saw the stale task replaces it."""
+    @pytest.mark.asyncio
+    async def test_the_second_restart_is_a_no_op(self) -> None:
+        """Only the watcher that saw the stale task replaces it.
+
+        Async because `asyncio.Future()` needs a running loop -- outside
+        one, Python 3.14 raises rather than making a policy loop, and
+        this failed only there.
+        """
         client = _client()
-        stale = asyncio.Future()
+        stale = asyncio.get_running_loop().create_future()
         client._position_poller = stale  # type: ignore[assignment]
 
         client._restart_poller(stale, 5.0)  # type: ignore[arg-type]

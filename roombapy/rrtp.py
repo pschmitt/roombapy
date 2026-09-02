@@ -173,7 +173,7 @@ _PARSERS: dict[str, Callable[[dict[str, Any]], RobotPosition | None]] = {
 
 
 def parse_response(decoded: dict[str, Any]) -> RobotPosition | None:
-    """Turn a reply into a Pose, or None when there is no position."""
+    """Turn a reply into a RobotPosition, or None when there is no fix."""
     version = decoded.get("ver")
     parser = _PARSERS.get(str(version))
     if parser is None:
@@ -187,7 +187,7 @@ def parse_response(decoded: dict[str, Any]) -> RobotPosition | None:
 
 
 def pose_from_shadow(pose: dict[str, Any]) -> RobotPosition | None:
-    """Convert a 900-series shadow `pose` into the same Pose.
+    """Convert a 900-series shadow `pose` into a RobotPosition.
 
     The shadow reports `{"theta": 153, "point": {"x": -16, "y": 243}}`
     -- integer millimetres and degrees. Same origin and same axis as the

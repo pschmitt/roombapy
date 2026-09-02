@@ -116,7 +116,7 @@ class TestBothGenerationsAgree:
         assert pose.theta == pytest.approx(math.radians(153))
 
     def test_source_still_tells_them_apart(self) -> None:
-        """Unifying the units must not hide the cost difference:.
+        """Unifying the units must not hide the cost difference.
 
         listening to a shadow is free, every requested pose is a round
         trip.
@@ -135,7 +135,7 @@ class TestBothGenerationsAgree:
 
 
 class TestThetaWrapIsNotSmoothed:
-    """@Thonno's rate run caught a turn in place crossing pi:.
+    """A turn in place crossing pi, from a real rate run.
 
         -1.43 -> -0.53 -> 0.53 -> 1.33 -> 1.97 -> 2.40 -> 3.06 -> -2.63
 
@@ -208,7 +208,7 @@ class TestRequestMatching:
 
 
 class TestTheRequestBody:
-    """What goes out on ."""
+    """What goes out on the request topic."""
 
     def test_it_matches_what_the_app_sends(self) -> None:
         """Three fields, no more."""

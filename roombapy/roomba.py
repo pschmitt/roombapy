@@ -182,12 +182,23 @@ class RoombaClient:
         #: Outstanding position requests, matched by reqId.
         self._rrtp = rrtp.RrtpRequests()
         #: One poller feeds however many position watchers there are.
-        self._position_watchers: set[asyncio.Queue[rrtp.RobotPosition]] = set()
+        #: Mapped to the interval each asked for, so the poller can drop
+        #: back to a slower rate when a fast watcher leaves.
+        self._position_watchers: dict[
+            asyncio.Queue[rrtp.RobotPosition], float
+        ] = {}
         self._position_poller: asyncio.Task[None] | None = None
         #: Set once a shadow pose arrives. Latching rather than
         #: re-checking: a robot that has published once will publish
         #: again, and this must survive a quiet moment mid-mission.
         self._shadow_publishes_pose = False
+        #: Interval the shared poller currently runs at.
+        self._position_interval = float("inf")
+        #: Set once this robot has failed to answer position requests.
+        #: Cleared on disconnect, because a firmware update that adds
+        #: the capability brings a reconnect with it -- a permanent
+        #: "cannot" would outlive the reason for it.
+        self._position_unsupported = False
         self._closed_event = asyncio.Event()
 
     # ------------------------------------------------------------------
@@ -313,6 +324,19 @@ class RoombaClient:
         finally:
             self._watchers.discard(queue)
 
+    def _forget_position_capabilities(self) -> None:
+        """Drop what this connection learned about the robot.
+
+        Both flags describe the robot as seen over one session: whether
+        it publishes a pose, and whether it answered requests. A
+        firmware update that changes either brings a reconnect with it,
+        so neither verdict should outlive the connection that produced
+        it.
+        """
+        self._rrtp.cancel_all()
+        self._position_unsupported = False
+        self._shadow_publishes_pose = False
+
     def _feed_position_watchers(self, pose: rrtp.RobotPosition) -> None:
         """Hand a position to everyone listening, whichever path found it."""
         for queue in self._position_watchers:
@@ -386,6 +410,10 @@ class RoombaClient:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._connected = False
+        # PENDING REQUESTS DIE WITH THE CONNECTION. A caller awaiting a
+        # position when the client shuts down would otherwise sit on a
+        # future nothing can ever resolve.
+        self._forget_position_capabilities()
         self._closed_event.set()
 
         # Give callbacks already in flight a chance to finish. A consumer
@@ -514,6 +542,10 @@ class RoombaClient:
                     await self._notify_disconnect("internal error")
             finally:
                 self._connected = False
+                # Same on an unexpected drop: the reply for anything
+                # in flight was going to arrive on a socket that no
+                # longer exists.
+                self._forget_position_capabilities()
                 self._client = None
 
             if self._closing:
@@ -745,13 +777,32 @@ class RoombaClient:
         vendor app ever compares that value; lewis hard-codes it to 2.
         Support is established by asking and handling silence.
         """
+        # THE SHADOW FIRST, if there is one. A 900-series publishes its
+        # position and never answers a request -- asking anyway would
+        # hand the caller a TimeoutError for data already in hand.
+        #
+        # `watch_position()` gets this right by listening before it
+        # polls; a single call has no such window, so it reads what has
+        # already arrived.
+        reported = self.master_state.get("state", {}).get("reported", {})
+        raw_pose = reported.get("pose")
+        if isinstance(raw_pose, dict):
+            pose = rrtp.pose_from_shadow(raw_pose)
+            if pose is not None:
+                return pose
+
         req_id, future = self._rrtp.new_request()
         payload = orjson.dumps(rrtp.build_request(req_id)).decode("utf-8")
         try:
             await self._publish(rrtp.REQUEST_TOPIC, payload)
             async with asyncio.timeout(timeout):
                 return await future
-        except (TimeoutError, asyncio.CancelledError):
+        except BaseException:
+            # EVERY failure, not just timeout and cancellation. A
+            # `_publish` that raises -- not connected, broker gone --
+            # would otherwise leave the request in `_pending` for the
+            # lifetime of the client, and a poller retrying once a
+            # second would accumulate them.
             self._rrtp.abandon(req_id)
             raise
 
@@ -796,26 +847,168 @@ class RoombaClient:
             )
             raise ValueError(msg)
 
+        if self._position_unsupported:
+            # ASKED AND ANSWERED. Without this, a dashboard opening and
+            # closing a map view would spend three requests and a grace
+            # period each time, against a robot already known not to
+            # answer.
+            msg = (
+                f"{self.address} did not answer position requests "
+                f"earlier in this connection"
+            )
+            raise rrtp.RrtpUnsupportedError(msg)
+
         queue: asyncio.Queue[rrtp.RobotPosition] = asyncio.Queue(
             maxsize=maxsize
         )
-        self._position_watchers.add(queue)
-        if self._position_poller is None or self._position_poller.done():
+        self._position_watchers[queue] = interval
+        # THE FASTEST REQUEST WINS. One poller serves every watcher, so
+        # a second caller asking for a shorter interval would otherwise
+        # be silently given the first caller's slower one -- and would
+        # see a sparser trail than it asked for with nothing to explain
+        # why.
+        #
+        # Restarting is cheap: the existing watchers keep their queues,
+        # and the new poller feeds all of them.
+        wanted = min(self._position_watchers.values())
+        faster = wanted < self._position_interval
+        self._position_interval = wanted
+        stale = self._position_poller is None or self._position_poller.done()
+        if stale or faster:
+            if self._position_poller is not None:
+                self._position_poller.cancel()
             self._position_poller = asyncio.ensure_future(
-                self._run_position_poller(interval, timeout)
+                self._run_position_poller(timeout)
             )
         try:
-            while True:
-                yield await queue.get()
+            async for pose in self._drain_positions(queue, timeout):
+                yield pose
         finally:
-            self._position_watchers.discard(queue)
-            if not self._position_watchers and self._position_poller:
-                self._position_poller.cancel()
-                self._position_poller = None
+            self._position_watchers.pop(queue, None)
+            if not self._position_watchers:
+                if self._position_poller is not None:
+                    # AWAITED, NOT JUST CANCELLED. `cancel()` only
+                    # requests it; the task stays pending until the
+                    # loop gets round to it, so a caller that closes a
+                    # stream and then tears down its event loop leaves
+                    # a task behind.
+                    #
+                    # Five tests had to clean this up by hand, which is
+                    # the library asking its callers to finish a job it
+                    # started.
+                    poller, self._position_poller = (
+                        self._position_poller,
+                        None,
+                    )
+                    poller.cancel()
+                    with contextlib.suppress(
+                        asyncio.CancelledError, Exception
+                    ):
+                        await poller
+                # Reset, or the next stream inherits a rate nobody asked
+                # for from a caller that has long gone.
+                self._position_interval = float("inf")
+            else:
+                # A FAST WATCHER LEAVING SHOULD SLOW THE POLLER BACK
+                # DOWN. Otherwise one caller asking for 0.5 s leaves
+                # everyone else paying for that rate after it has gone.
+                self._position_interval = min(self._position_watchers.values())
+
+    def _restart_poller(
+        self,
+        stale: asyncio.Task[None],
+        timeout: float,
+    ) -> None:
+        """Start a replacement poller, unless another watcher already did.
+
+        TWO WATCHERS WAKE ON THE SAME DEAD POLLER. Both would assign to
+        `_position_poller`, the second overwriting the first -- whose
+        task keeps running unreferenced. That is two pollers asking the
+        same robot twice as often, which is the exact thing one shared
+        poller exists to prevent.
+
+        Comparing against the task the caller saw makes the second
+        caller a no-op.
+        """
+        if self._position_poller is not stale:
+            return
+        self._position_poller = asyncio.ensure_future(
+            self._run_position_poller(timeout)
+        )
+
+    def _poller_ended_recoverably(self, poller: asyncio.Task[None]) -> bool:
+        """Decide whether the stream carries on after the poller stopped.
+
+        Two ways a poller ends without anything being wrong: the robot
+        turned out to publish, so the shadow feeds the stream instead;
+        or the connection dropped and `_supervise` is rebuilding it.
+
+        Returning True for the second is what keeps a reconnect from
+        looking like a completed mission.
+        """
+        if not poller.cancelled():
+            poller.result()  # re-raises whatever it hit
+        if self._shadow_publishes_pose:
+            return True
+        return self._connected or not self._closed_event.is_set()
+
+    async def _drain_positions(
+        self,
+        queue: asyncio.Queue[rrtp.RobotPosition],
+        timeout: float,  # noqa: ASYNC109
+    ) -> AsyncIterator[rrtp.RobotPosition]:
+        """Yield from the queue while watching the poller for failures.
+
+        Split out of `watch_position` so the setup and the loop can be
+        read separately; the cleanup stays with the caller.
+        """
+        while True:
+            # RACE THE POLLER, do not just wait on the queue.
+            #
+            # A bare `await queue.get()` hangs forever when the
+            # poller raises: the exception dies inside the task and
+            # the consumer waits for a position that will never
+            # come. RrtpUnsupportedError exists precisely so a
+            # consumer finds out, and swallowing it here would
+            # defeat the whole point.
+            poller = self._position_poller
+            if poller is None or poller.done():
+                if poller is None or not self._poller_ended_recoverably(
+                    poller
+                ):
+                    return
+                if self._shadow_publishes_pose:
+                    yield await queue.get()
+                    continue
+                self._restart_poller(poller, timeout)
+                continue
+            getter = asyncio.ensure_future(queue.get())
+            try:
+                done, _pending = await asyncio.wait(
+                    {getter, poller},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+            except BaseException:
+                # THE GETTER OUTLIVES A CANCELLED CONSUMER OTHERWISE.
+                # `asyncio.wait` does not cancel what it was waiting
+                # on, so a consumer cancelled mid-await leaves a
+                # queue.get() pending on the event loop forever.
+                getter.cancel()
+                raise
+            if getter in done:
+                yield getter.result()
+                continue
+            getter.cancel()
+            # SAME DECISION AS ABOVE. This branch used to return
+            # unconditionally, so a reconnect ended the stream here even
+            # after the other path learned not to.
+            if not self._poller_ended_recoverably(poller):
+                return
+            if not self._shadow_publishes_pose:
+                self._restart_poller(poller, timeout)
 
     async def _run_position_poller(
         self,
-        interval: float,
         timeout: float,  # noqa: ASYNC109
     ) -> None:
         """Ask repeatedly, feed every watcher, stop when nobody listens."""
@@ -847,6 +1040,7 @@ class RoombaClient:
                 # Without this the stream would poll a generation that
                 # cannot answer every half second until the mission ends.
                 if misses >= _UNSUPPORTED_AFTER:
+                    self._position_unsupported = True
                     for queue in self._position_watchers:
                         _drop_oldest_if_full(queue)
                     msg = (
@@ -860,7 +1054,10 @@ class RoombaClient:
                 misses = 0
             if pose is not None:
                 self._feed_position_watchers(pose)
-            await asyncio.sleep(interval)
+            # Re-read each pass: a watcher joining or leaving changes
+            # the shared rate, and the poller should follow rather than
+            # keep the value it was started with.
+            await asyncio.sleep(self._position_interval)
 
     async def _publish(self, topic: str, payload: str) -> None:
         client = self._client

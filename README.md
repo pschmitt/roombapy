@@ -134,6 +134,12 @@ requests answered on a moving robot — but that was a stress test, and a
 At 1 Hz the point spacing is around 125 mm, comparable to the 132 mm a
 900-series publishes unprompted.
 
+**One poller serves every watcher**, at the shortest interval any of
+them asked for. A second caller asking for a faster rate restarts it;
+when that caller leaves, it drops back. The robot allows one local
+connection, so two callers running their own loops would double its
+load without either noticing.
+
 Do **not** gate any of this on `cap.pose`. Neither the firmware nor the
 vendor app ever compares that value, and lewis hard-codes it to 2;
 support is established by asking and handling silence.

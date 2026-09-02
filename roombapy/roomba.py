@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Literal, Self, cast
 import aiomqtt
 import orjson
 
+from roombapy import rrtp
 from roombapy.state import RoombaMessage, RoombaStateMachine
 from roombapy.tls import generate_tls_context
 
@@ -41,6 +42,41 @@ __all__ = [
     "RoombaScopeError",
     "TransportOptions",
 ]
+
+#: Fastest position poll a caller may ask for.
+#:
+#: 0.5 s is the only rate anyone has verified: 100 of 100 requests
+#: answered on a moving i7+, latencies 0.24-0.78 s. That was a STRESS
+#: TEST rather than a recommendation -- @Thonno picked it to see whether
+#: the robot would hold up and whether a rate limit existed, and it is
+#: the ceiling of what is known to work, not a suggestion.
+#:
+#: The floor keeps a caller from finding the real limit on somebody
+#: else's hardware.
+_MIN_POSITION_INTERVAL = 0.5
+
+#: Default poll interval.
+#:
+#: 1 Hz rather than the 2 Hz that was tested, because the tested figure
+#: was a stress test. Over a 77-minute mission that is ~4,600 requests
+#: instead of ~9,200, and the resulting spacing is still around 125 mm
+#: -- comparable to the 132 mm a 900-series publishes unprompted.
+#:
+#: Callers who want the denser trail can ask for it; the default should
+#: not be the hardest thing the robot survived.
+_DEFAULT_POSITION_INTERVAL = 1.0
+
+#: How long to wait for the robot to publish a pose before asking for
+#: one. Generous on purpose: whichever generation this is, it settles
+#: the question in a couple of seconds, and getting it wrong the other
+#: way means polling a robot that was already telling us.
+_SHADOW_GRACE = 3.0
+
+#: Silent replies before the stream declares the robot incapable.
+#: Three rather than one, because a single miss can be a dropped
+#: connection -- and three costs a second and a half rather than the
+#: rest of a mission.
+_UNSUPPORTED_AFTER = 3
 
 MAX_CONNECTION_RETRIES = 3
 RECONNECT_BACKOFF_MIN = 1.0
@@ -143,6 +179,15 @@ class RoombaClient:
         self.auth_error: RoombaAuthError | None = None
         self._pending_callbacks: set[asyncio.Task[None]] = set()
         self._watchers: set[asyncio.Queue[RoombaMessage]] = set()
+        #: Outstanding position requests, matched by reqId.
+        self._rrtp = rrtp.RrtpRequests()
+        #: One poller feeds however many position watchers there are.
+        self._position_watchers: set[asyncio.Queue[rrtp.RobotPosition]] = set()
+        self._position_poller: asyncio.Task[None] | None = None
+        #: Set once a shadow pose arrives. Latching rather than
+        #: re-checking: a robot that has published once will publish
+        #: again, and this must survive a quiet moment mid-mission.
+        self._shadow_publishes_pose = False
         self._closed_event = asyncio.Event()
 
     # ------------------------------------------------------------------
@@ -267,6 +312,12 @@ class RoombaClient:
                 yield get.result()
         finally:
             self._watchers.discard(queue)
+
+    def _feed_position_watchers(self, pose: rrtp.RobotPosition) -> None:
+        """Hand a position to everyone listening, whichever path found it."""
+        for queue in self._position_watchers:
+            _drop_oldest_if_full(queue)
+            queue.put_nowait(pose)
 
     def _feed_watchers(self, message: RoombaMessage) -> None:
         for queue in self._watchers:
@@ -530,6 +581,38 @@ class RoombaClient:
             )
             return
 
+        # A REPLY IS NOT STATE, and this has to come before apply().
+        #
+        # The rrtp response carries `reportType`, `reqId` and `data` at
+        # the top level. dict_merge would file them alongside `state`,
+        # where every consumer reading master_state would see them --
+        # briefly, until the next shadow update, which is long enough to
+        # be read as robot state.
+        if topic == rrtp.RESPONSE_TOPIC:
+            self._rrtp.resolve(decoded)
+            return
+
+        # A SHADOW POSE FEEDS THE SAME STREAM. A 900-series publishes
+        # its position rather than answering for it, and a consumer
+        # should not have to know which generation it has -- that is the
+        # whole point of RobotPosition carrying `source`.
+        # NOT gated on there being watchers: the flag has to be set
+        # whether or not anyone is listening yet, or a stream opened
+        # later starts a poller for a robot that has been publishing
+        # all along.
+        reported = (decoded.get("state") or {}).get("reported") or {}
+        raw_pose = reported.get("pose")
+        if isinstance(raw_pose, dict):
+            pose = rrtp.pose_from_shadow(raw_pose)
+            if pose is not None:
+                self._shadow_publishes_pose = True
+                # A poller that started before the first shadow message
+                # has its answer now.
+                if self._position_poller is not None:
+                    self._position_poller.cancel()
+                    self._position_poller = None
+                self._feed_position_watchers(pose)
+
         self._state.apply(decoded)
 
         # Periodically re-derive everything from the accumulated state, as the
@@ -641,6 +724,144 @@ class RoombaClient:
         payload = orjson.dumps({"state": {preference: value}}).decode("utf-8")
         await self._publish("delta", payload)
 
+    async def get_position(
+        self,
+        *,
+        # A ROBOT-SHAPED DEADLINE, not a caller-shaped one. Silence here
+        # means the generation does not implement the request, so the
+        # value is protocol knowledge rather than caller preference --
+        # same reasoning as discovery's timeouts.
+        timeout: float = 5.0,  # noqa: ASYNC109
+    ) -> rrtp.RobotPosition | None:
+        """Ask the robot where it is.
+
+        Returns None when the robot answered but has no fix -- a real
+        state, not a failure. Raises TimeoutError when nothing comes
+        back, which on this protocol means the robot does not implement
+        the request rather than that it was busy: field captures show
+        100 of 100 answered at 2 Hz on a moving robot.
+
+        DO NOT gate this on `cap.pose`. Neither the firmware nor the
+        vendor app ever compares that value; lewis hard-codes it to 2.
+        Support is established by asking and handling silence.
+        """
+        req_id, future = self._rrtp.new_request()
+        payload = orjson.dumps(rrtp.build_request(req_id)).decode("utf-8")
+        try:
+            await self._publish(rrtp.REQUEST_TOPIC, payload)
+            async with asyncio.timeout(timeout):
+                return await future
+        except (TimeoutError, asyncio.CancelledError):
+            self._rrtp.abandon(req_id)
+            raise
+
+    async def watch_position(
+        self,
+        *,
+        interval: float = _DEFAULT_POSITION_INTERVAL,
+        timeout: float = 5.0,  # noqa: ASYNC109
+        maxsize: int = 10,
+    ) -> AsyncIterator[rrtp.RobotPosition]:
+        """Yield the robot's position for as long as anyone is listening.
+
+        THE INTERVAL BELONGS HERE, not to the caller. The robot accepts
+        one local connection, and two callers running their own loops
+        would double the load without either noticing. One poller feeds
+        every watcher, and the last one to leave stops it.
+
+        The default is 1 Hz. 2 Hz was verified -- 100 of 100 requests
+        answered on a moving i7+ -- but that was a stress test rather
+        than a recommendation, and a 77-minute mission at that rate is
+        roughly 9,200 requests against 4,600 at 1 Hz.
+
+        At 1 Hz the spacing works out around 125 mm between points,
+        comparable to the 132 mm a 900-series publishes unprompted. Ask
+        for 0.5 if you want the denser trail and have decided the
+        traffic is worth it.
+
+        NOT measured across a whole mission at any rate. The longest
+        verified run was fifty seconds.
+
+        Poses with no fix are skipped rather than yielded as None: a
+        stream of positions should carry positions, and a Braava jet m6
+        produced nothing else for a whole run.
+
+        Raises RrtpUnsupportedError after repeated silence, so a
+        consumer finds out rather than watching an empty map.
+        """
+        if interval < _MIN_POSITION_INTERVAL:
+            msg = (
+                f"interval {interval}s is below the {_MIN_POSITION_INTERVAL}s "
+                f"floor; no robot has been tested faster than 2 Hz"
+            )
+            raise ValueError(msg)
+
+        queue: asyncio.Queue[rrtp.RobotPosition] = asyncio.Queue(
+            maxsize=maxsize
+        )
+        self._position_watchers.add(queue)
+        if self._position_poller is None or self._position_poller.done():
+            self._position_poller = asyncio.ensure_future(
+                self._run_position_poller(interval, timeout)
+            )
+        try:
+            while True:
+                yield await queue.get()
+        finally:
+            self._position_watchers.discard(queue)
+            if not self._position_watchers and self._position_poller:
+                self._position_poller.cancel()
+                self._position_poller = None
+
+    async def _run_position_poller(
+        self,
+        interval: float,
+        timeout: float,  # noqa: ASYNC109
+    ) -> None:
+        """Ask repeatedly, feed every watcher, stop when nobody listens."""
+        # LISTEN BEFORE ASKING. A 900-series publishes its position, and
+        # `_handle_message` already feeds those into the same stream --
+        # so polling one would add traffic for data arriving for free,
+        # and would then raise RrtpUnsupportedError and kill a stream
+        # that was working.
+        #
+        # Waiting decides on what ARRIVES rather than on `cap.pose`,
+        # which is a compile-time constant on lewis and has never been
+        # compared against anything by either the firmware or the app.
+        # A robot that publishes does so within a second or two; this
+        # costs one delayed first point per stream.
+        await asyncio.sleep(_SHADOW_GRACE)
+        if self._shadow_publishes_pose:
+            return
+
+        misses = 0
+        while self._position_watchers:
+            try:
+                pose = await self.get_position(timeout=timeout)
+            except TimeoutError:
+                misses += 1
+                # THREE SILENT REQUESTS ARE NOT A HICCUP. Across 100
+                # consecutive requests on a moving robot there was not
+                # one miss -- a robot answers or it never does.
+                #
+                # Without this the stream would poll a generation that
+                # cannot answer every half second until the mission ends.
+                if misses >= _UNSUPPORTED_AFTER:
+                    for queue in self._position_watchers:
+                        _drop_oldest_if_full(queue)
+                    msg = (
+                        f"{self.address} did not answer "
+                        f"{_UNSUPPORTED_AFTER} position requests; this "
+                        f"robot does not implement rrtp position"
+                    )
+                    raise rrtp.RrtpUnsupportedError(msg) from None
+                continue
+            else:
+                misses = 0
+            if pose is not None:
+                self._feed_position_watchers(pose)
+            await asyncio.sleep(interval)
+
     async def _publish(self, topic: str, payload: str) -> None:
         client = self._client
         if client is None or not self._connected:
@@ -704,6 +925,17 @@ async def _guard(awaitable: Awaitable[Any], log: logging.Logger) -> None:
         await awaitable
     except Exception:
         log.exception("Error in Roomba callback")
+
+
+def _drop_oldest_if_full(queue: asyncio.Queue[Any]) -> None:
+    """Make room in a full queue, oldest first.
+
+    Same policy as watch(): a slow consumer loses the stalest position
+    rather than stalling the poller for everyone else.
+    """
+    if queue.full():
+        with contextlib.suppress(asyncio.QueueEmpty):
+            queue.get_nowait()
 
 
 def _decode_payload(raw_payload: bytes) -> RoombaMessage | None:

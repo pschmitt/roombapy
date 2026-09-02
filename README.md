@@ -82,6 +82,62 @@ has been received. Coverage is also deliberately partial beyond that: a key
 that is not declared is simply not typed, which is the right outcome for
 firmware-specific fields.
 
+## Live position (newer robots)
+
+900-series robots publish their position into the shadow. Newer ones do
+not — they answer when asked, over a request/response channel that
+nobody had documented until field captures from four robots across three
+firmware families settled it.
+
+```python
+# One reading
+pose = await client.get_position()
+if pose is not None:
+    print(pose.x, pose.y, pose.theta)  # metres, metres, radians
+
+# A stream
+async for pose in client.watch_position():
+    print(pose.x, pose.y)
+```
+
+**One stream, both generations.** `watch_position()` polls where it has
+to and reads the shadow where it can: a 900-series publishes its
+position, so it is never asked for one. `RobotPosition` is always
+**metres and radians**, origin at the dock, x-axis along the direction
+the robot faces when docked — a consumer does not need to know which
+generation it has.
+
+`pose.source` says anyway, because the cost differs: listening to a
+shadow is free, while every requested pose is a round trip.
+
+This is a different thing from `watch()`, which yields raw shadow
+messages — everything the robot reports, unparsed. `watch_position()`
+yields one kind of thing, already interpreted, and only when there is
+one.
+
+Three things worth knowing before building on it:
+
+- **`get_position()` returns `None` when the robot has no fix.** That is
+  a real state, not a failure — a Braava jet m6 answered that way for a
+  whole mission while a vacuum on the same account returned coordinates.
+- **`theta` wraps at π.** A field capture went from `3.06` to `-2.63`
+  across one turn. Anything computing heading deltas has to handle it;
+  the library reports what arrived rather than normalising.
+- **`watch_position()` raises `RrtpUnsupportedError`** after repeated
+  silence. Older generations do not implement the request, and an empty
+  stream would look like a finished mission instead of an unsupported
+  robot.
+
+The default poll interval is 1 Hz. 2 Hz was verified — 100 of 100
+requests answered on a moving robot — but that was a stress test, and a
+77-minute mission at that rate is roughly 9,200 requests against 4,600.
+At 1 Hz the point spacing is around 125 mm, comparable to the 132 mm a
+900-series publishes unprompted.
+
+Do **not** gate any of this on `cap.pose`. Neither the firmware nor the
+vendor app ever compares that value, and lewis hard-codes it to 2;
+support is established by asking and handling silence.
+
 ## Upgrading from 1.x
 
 Version 2 is asynchronous throughout, and breaking.

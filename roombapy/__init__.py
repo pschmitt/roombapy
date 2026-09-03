@@ -25,6 +25,7 @@ from roombapy.roomba import (
     TransportOptions,
 )
 from roombapy.roomba_info import RoombaInfo
+from roombapy.rrtp import RobotPosition, RrtpUnsupportedError
 from roombapy.state import RoombaStateMachine
 from roombapy.tls import generate_tls_context
 from roombapy.types import (
@@ -74,6 +75,7 @@ __all__ = [
     "PosePoint",
     "ReportedState",
     "ResetInfo",
+    "RobotPosition",
     "RoombaAuthError",
     "RoombaClient",
     "RoombaConnectionError",
@@ -84,6 +86,7 @@ __all__ = [
     "RoombaPassword",
     "RoombaScopeError",
     "RoombaStateMachine",
+    "RrtpUnsupportedError",
     "RunStats",
     "SignalState",
     "State",

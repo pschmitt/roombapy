@@ -173,6 +173,54 @@ class TestBothReplyShapes:
 
         assert rrtp.parse_response(reply) is None
 
+    def test_a_missing_ts_defaults_but_an_explicit_null_does_not(self) -> None:
+        """Keep the strictness the parser had before both shapes existed.
+
+        A missing key means "not stated" and has always yielded 0. An
+        explicit `null` or `""` means the robot said something and it
+        was not a timestamp -- that used to raise inside `int()` and
+        reject the whole reply.
+
+        The first version of this change read `int(raw_ts or 0)`, which
+        collapsed all three into 0 and would have produced positions
+        stamped at the epoch. Caught in review on PR #590.
+        """
+        missing = {"ver": "1.0.0", "data": [{"coords": [1.0, 2.0, 3.0]}]}
+        pose = rrtp.parse_response(missing)
+        assert pose is not None
+        assert pose.timestamp == 0
+
+        for bad in (None, ""):
+            reply = {
+                "ver": "1.0.0",
+                "data": [{"coords": [1.0, 2.0, 3.0], "ts": bad}],
+            }
+            assert rrtp.parse_response(reply) is None, bad
+
+    def test_the_object_form_keeps_the_same_ts_rules(self) -> None:
+        """The two shapes must not disagree about what a bad ts means."""
+        missing = {
+            "ver": "1.0.0",
+            "data": [
+                {"coords": [{"type": "current", "xyt": [1.0, 2.0, 3.0]}]}
+            ],
+        }
+        pose = rrtp.parse_response(missing)
+        assert pose is not None
+        assert pose.timestamp == 0
+
+        explicit_null = {
+            "ver": "1.0.0",
+            "data": [
+                {
+                    "coords": [
+                        {"type": "current", "xyt": [1.0, 2.0, 3.0], "ts": None}
+                    ]
+                }
+            ],
+        }
+        assert rrtp.parse_response(explicit_null) is None
+
     def test_a_short_bare_triple_does_not_unpack(self) -> None:
         """Refuse two numbers where three are needed."""
         reply = {"ver": "1.0.0", "data": [{"coords": [1.0, 2.0], "ts": 1}]}

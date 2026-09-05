@@ -118,6 +118,66 @@ def _first_dict(value: Any) -> dict[str, Any] | None:
     return first if isinstance(first, dict) else None
 
 
+def _xyt_and_ts(entry: dict[str, Any]) -> tuple[Any, Any] | None:
+    """Return the coordinate triple and timestamp from one entry.
+
+    Handles whichever of the two reply shapes the robot used.
+
+    THERE ARE TWO, AND THE SECOND WAS UNKNOWN UNTIL A FIELD RUN FOUND
+    IT. Same `reportType`, same `ver: "1.0.0"`, same robot, minutes
+    apart:
+
+        coords: [{"type": "current", "xyt": [x, y, t], "ts": 123}]
+        coords: [x, y, t]        with "ts" one level up, on the entry
+
+    The second arrived from an i7+ on lewis 22.52.10 that had just
+    finished a mission and was sitting in its dock while the base
+    emptied (@Thonno, cloud path). It also omits `pmapv_id`, which the
+    object form carries.
+
+    WHAT IT COST BEFORE THIS EXISTED: the bare form was dropped
+    silently. `_first_dict(coords)` found a float where it wanted a
+    dict, returned None, and the caller reported "no fix" -- for a reply
+    that carried a real position. That window matters more than its
+    rarity suggests: it is precisely "localised, but no mission
+    running", which is where a robot sits at the end of a run. A live
+    map would have thrown away the one reading that says where the
+    cleaning ended.
+
+    Both shapes are accepted and neither is guessed at. A third shape
+    returns None rather than being coerced into one of these.
+    """
+    coords = entry.get("coords")
+    if not isinstance(coords, list) or not coords:
+        return None
+
+    first = coords[0]
+
+    # The documented object form.
+    if isinstance(first, dict):
+        # `type: "unknown"` omits `xyt` entirely -- a robot that answered
+        # and has no fix. Handled by the length check in the caller, not
+        # here, so that "no coordinates" and "malformed coordinates"
+        # stay one decision in one place.
+        #
+        # `get("ts", 0)` DEFAULTS ONLY ON A MISSING KEY, which is what
+        # the caller needs to stay strict. An explicit null or empty
+        # string must reach `int()` and raise there, exactly as before
+        # this function existed.
+        return first.get("xyt"), first.get("ts", 0)
+
+    # The bare form: coords IS the triple, and `ts` belongs to the entry.
+    #
+    # Checked by type rather than just by shape. A list of three
+    # anythings would satisfy a length test, and coercing the wrong
+    # thing into a position is worse than reporting no fix.
+    numeric = (int, float)
+    if all(isinstance(v, numeric) and not isinstance(v, bool) for v in coords):
+        return coords, entry.get("ts", 0)
+
+    return None
+
+
 def _parse_v1(decoded: dict[str, Any]) -> RobotPosition | None:
     """Parse a `ver: 1.0.0` reply.
 
@@ -129,11 +189,11 @@ def _parse_v1(decoded: dict[str, Any]) -> RobotPosition | None:
     first = _first_dict(decoded.get("data"))
     if first is None:
         return None
-    coord = _first_dict(first.get("coords"))
-    if coord is None:
+    found = _xyt_and_ts(first)
+    if found is None:
         return None
+    xyt, raw_ts = found
 
-    xyt = coord.get("xyt")
     # LENGTH-CHECKED, not just truthy. `type: "unknown"` omits the key
     # entirely, but a short or malformed list must not unpack.
     if not isinstance(xyt, (list, tuple)) or len(xyt) != 3:
@@ -141,7 +201,14 @@ def _parse_v1(decoded: dict[str, Any]) -> RobotPosition | None:
 
     try:
         x, y, theta = (float(v) for v in xyt)
-        ts = int(coord.get("ts", 0))
+        # `int(raw_ts)`, NOT `int(raw_ts or 0)`. The `or 0` form looks
+        # harmless and quietly loosened this: an explicit `"ts": null`
+        # or `"ts": ""` used to raise here and reject the whole reply,
+        # and would instead have become a position stamped at the epoch.
+        # A missing key still yields 0, because _xyt_and_ts() defaults
+        # it -- so the two cases stay distinguishable. Caught in review
+        # by Copilot on PR #590.
+        ts = int(raw_ts)
     except (TypeError, ValueError):
         _LOGGER.debug("rrtp: unparsable coordinates %r", xyt)
         return None

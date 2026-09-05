@@ -47,6 +47,187 @@ NO_FIX = {
 }
 
 
+#: THE SECOND REPLY SHAPE, from a real cloud run (@Thonno, i7+ on lewis
+#: 22.52.10). Same `reportType`, same `ver`, same robot as the object
+#: form above -- minutes apart.
+#:
+#: `coords` IS the triple here, `ts` sits on the entry rather than
+#: inside the coordinate, and `pmapv_id` is absent. The robot had just
+#: finished a mission and was in its dock with the base emptying: still
+#: localised, no mission running.
+BARE_TRIPLE = {
+    "reportType": "current",
+    "reqId": "cloud-1",
+    "ver": "1.0.0",
+    "data": [
+        {
+            "pmap_id": "tM_GAKM5SmyBhqotQtQrtw",
+            "coords": [0.02, 0.07, -1.56],
+            "ts": 1788511060,
+        }
+    ],
+}
+
+#: The same robot mid-mission, object form, for contrast.
+MID_MISSION = {
+    "reportType": "current",
+    "reqId": "cloud-1",
+    "ver": "1.0.0",
+    "data": [
+        {
+            "pmap_id": "tM_GAKM5SmyBhqotQtQrtw",
+            "pmapv_id": "260904T074144",
+            "coords": [
+                {
+                    "type": "current",
+                    "xyt": [-3.63, 3.17, 1.74],
+                    "ts": 1788511012,
+                }
+            ],
+        }
+    ],
+}
+
+
+class TestBothReplyShapes:
+    """Both structures a robot uses to answer `current`.
+
+    Found by field run, not by reading: the bare form was being dropped
+    silently. `_first_dict(coords)` wanted a dict, found a float,
+    returned None, and the caller reported "no fix" for a reply carrying
+    a real position.
+
+    It matters more than its rarity suggests. The bare form appears when
+    the robot is localised with no mission running -- which is where a
+    robot sits at the end of a run, and exactly the reading a live map
+    would want in order to record where the cleaning finished.
+    """
+
+    def test_the_bare_triple_is_a_position(self) -> None:
+        """Read a position out of the bare form."""
+        pose = rrtp.parse_response(BARE_TRIPLE)
+
+        assert pose is not None
+        assert (pose.x, pose.y, pose.theta) == (0.02, 0.07, -1.56)
+
+    def test_the_timestamp_comes_from_the_entry(self) -> None:
+        """Read `ts` from the entry, where this shape puts it.
+
+        Reading it from the coordinate would silently produce 0 -- a
+        position stamped at the epoch, which no caller would question.
+        """
+        pose = rrtp.parse_response(BARE_TRIPLE)
+
+        assert pose is not None
+        assert pose.timestamp == 1788511060
+
+    def test_a_missing_pmapv_id_is_none_not_invented(self) -> None:
+        """Leave it None; the bare form omits it.
+
+        Every other field still resolves.
+        """
+        pose = rrtp.parse_response(BARE_TRIPLE)
+
+        assert pose is not None
+        assert pose.pmapv_id is None
+        assert pose.pmap_id == "tM_GAKM5SmyBhqotQtQrtw"
+
+    def test_the_object_form_still_parses(self) -> None:
+        """Keep the shape that already worked.
+
+        The negative control for the change itself: widening the parser
+        must not cost the object form.
+        """
+        pose = rrtp.parse_response(MID_MISSION)
+
+        assert pose is not None
+        assert (pose.x, pose.y, pose.theta) == (-3.63, 3.17, 1.74)
+        assert pose.timestamp == 1788511012
+        assert pose.pmapv_id == "260904T074144"
+
+    def test_a_list_of_strings_is_not_a_position(self) -> None:
+        """Document the outcome; do NOT read this as guarding the check.
+
+        Strings are stopped twice over -- by the type check here and,
+        failing that, by `float("a")` raising inside the conversion
+        below. Replacing the type check with a bare length test leaves
+        this test passing. Kept because the behaviour is worth pinning,
+        and labelled because a test that cannot fail is worse than no
+        test when someone later reads it as coverage.
+        """
+        coords = ["a", "b", "c"]
+        reply = {"ver": "1.0.0", "data": [{"coords": coords, "ts": 1}]}
+
+        assert rrtp.parse_response(reply) is None
+
+    def test_booleans_are_not_coordinates(self) -> None:
+        """Guard the type check -- the only test here that does.
+
+        `True` is an `int` in Python and `float(True)` is `1.0`, so a
+        length test alone would turn three booleans into the position
+        (1.0, 0.0, 1.0) and report it as a fix. Confirmed by reverting
+        the check: this test fails, the string test above does not.
+        """
+        coords = [True, False, True]
+        reply = {"ver": "1.0.0", "data": [{"coords": coords, "ts": 1}]}
+
+        assert rrtp.parse_response(reply) is None
+
+    def test_a_missing_ts_defaults_but_an_explicit_null_does_not(self) -> None:
+        """Keep the strictness the parser had before both shapes existed.
+
+        A missing key means "not stated" and has always yielded 0. An
+        explicit `null` or `""` means the robot said something and it
+        was not a timestamp -- that used to raise inside `int()` and
+        reject the whole reply.
+
+        The first version of this change read `int(raw_ts or 0)`, which
+        collapsed all three into 0 and would have produced positions
+        stamped at the epoch. Caught in review on PR #590.
+        """
+        missing = {"ver": "1.0.0", "data": [{"coords": [1.0, 2.0, 3.0]}]}
+        pose = rrtp.parse_response(missing)
+        assert pose is not None
+        assert pose.timestamp == 0
+
+        for bad in (None, ""):
+            reply = {
+                "ver": "1.0.0",
+                "data": [{"coords": [1.0, 2.0, 3.0], "ts": bad}],
+            }
+            assert rrtp.parse_response(reply) is None, bad
+
+    def test_the_object_form_keeps_the_same_ts_rules(self) -> None:
+        """The two shapes must not disagree about what a bad ts means."""
+        missing = {
+            "ver": "1.0.0",
+            "data": [
+                {"coords": [{"type": "current", "xyt": [1.0, 2.0, 3.0]}]}
+            ],
+        }
+        pose = rrtp.parse_response(missing)
+        assert pose is not None
+        assert pose.timestamp == 0
+
+        explicit_null = {
+            "ver": "1.0.0",
+            "data": [
+                {
+                    "coords": [
+                        {"type": "current", "xyt": [1.0, 2.0, 3.0], "ts": None}
+                    ]
+                }
+            ],
+        }
+        assert rrtp.parse_response(explicit_null) is None
+
+    def test_a_short_bare_triple_does_not_unpack(self) -> None:
+        """Refuse two numbers where three are needed."""
+        reply = {"ver": "1.0.0", "data": [{"coords": [1.0, 2.0], "ts": 1}]}
+
+        assert rrtp.parse_response(reply) is None
+
+
 class TestParsingRealReplies:
     """Real captures, parsed."""
 

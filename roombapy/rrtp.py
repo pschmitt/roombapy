@@ -159,7 +159,12 @@ def _xyt_and_ts(entry: dict[str, Any]) -> tuple[Any, Any] | None:
         # and has no fix. Handled by the length check in the caller, not
         # here, so that "no coordinates" and "malformed coordinates"
         # stay one decision in one place.
-        return first.get("xyt"), first.get("ts")
+        #
+        # `get("ts", 0)` DEFAULTS ONLY ON A MISSING KEY, which is what
+        # the caller needs to stay strict. An explicit null or empty
+        # string must reach `int()` and raise there, exactly as before
+        # this function existed.
+        return first.get("xyt"), first.get("ts", 0)
 
     # The bare form: coords IS the triple, and `ts` belongs to the entry.
     #
@@ -168,7 +173,7 @@ def _xyt_and_ts(entry: dict[str, Any]) -> tuple[Any, Any] | None:
     # thing into a position is worse than reporting no fix.
     numeric = (int, float)
     if all(isinstance(v, numeric) and not isinstance(v, bool) for v in coords):
-        return coords, entry.get("ts")
+        return coords, entry.get("ts", 0)
 
     return None
 
@@ -196,7 +201,14 @@ def _parse_v1(decoded: dict[str, Any]) -> RobotPosition | None:
 
     try:
         x, y, theta = (float(v) for v in xyt)
-        ts = int(raw_ts or 0)
+        # `int(raw_ts)`, NOT `int(raw_ts or 0)`. The `or 0` form looks
+        # harmless and quietly loosened this: an explicit `"ts": null`
+        # or `"ts": ""` used to raise here and reject the whole reply,
+        # and would instead have become a position stamped at the epoch.
+        # A missing key still yields 0, because _xyt_and_ts() defaults
+        # it -- so the two cases stay distinguishable. Caught in review
+        # by Copilot on PR #590.
+        ts = int(raw_ts)
     except (TypeError, ValueError):
         _LOGGER.debug("rrtp: unparsable coordinates %r", xyt)
         return None

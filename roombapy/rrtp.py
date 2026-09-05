@@ -167,9 +167,7 @@ def _xyt_and_ts(entry: dict[str, Any]) -> tuple[Any, Any] | None:
     # anythings would satisfy a length test, and coercing the wrong
     # thing into a position is worse than reporting no fix.
     numeric = (int, float)
-    if all(
-        isinstance(v, numeric) and not isinstance(v, bool) for v in coords
-    ):
+    if all(isinstance(v, numeric) and not isinstance(v, bool) for v in coords):
         return coords, entry.get("ts")
 
     return None

@@ -1,6 +1,8 @@
 """Test the decoding of the Roomba messages."""
 
-from roombapy.roomba import _decode_payload
+import asyncio
+
+from roombapy.roomba import RoombaClient, _decode_payload
 
 
 def test_skip_garbage() -> None:
@@ -36,3 +38,72 @@ def test_allow_valid_json() -> None:
         }
     }
     assert _decode_payload(payload) == decoded
+
+
+# ---------------------------------------------------------------------
+# Preference payloads.
+#
+# Tested here rather than in test_commands.py because the question is
+# what gets BUILT, not what a broker does with it -- these need no
+# connection, and a grouped write is exactly the case where the shape
+# of the payload is the whole point.
+# ---------------------------------------------------------------------
+
+
+class _Capturing(RoombaClient):
+    """A client that records publishes instead of making them."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str]] = []
+
+    async def _publish(self, topic: str, payload: str) -> None:
+        self.published.append((topic, payload))
+
+
+def test_a_preference_group_goes_out_as_one_message() -> None:
+    """Keep a preference group in one message.
+
+    Some preferences are read by one firmware handler that needs its
+    whole group present, and a message carrying half of one is dropped
+    without a word -- no error, no echo, nothing on the wire. Two
+    single-key messages therefore set nothing at all.
+    """
+    client = _Capturing()
+    asyncio.run(
+        client.set_preferences({"noAutoPasses": True, "twoPass": True})
+    )
+
+    assert len(client.published) == 1, "the group must not be split"
+    topic, payload = client.published[0]
+    assert topic == "delta"
+    assert payload == '{"state":{"noAutoPasses":true,"twoPass":true}}'
+
+
+def test_boolean_strings_are_coerced_in_a_group_too() -> None:
+    """Coerce boolean strings in the plural form too.
+
+    Callers have passed str(True) for years, and routing the single
+    form through the plural one must not change that for either.
+    """
+    client = _Capturing()
+    asyncio.run(
+        client.set_preferences({"carpetBoost": "false", "vacHigh": "TRUE"})
+    )
+
+    assert (
+        client.published[0][1]
+        == '{"state":{"carpetBoost":false,"vacHigh":true}}'
+    )
+
+
+def test_a_single_preference_still_sends_a_single_key() -> None:
+    """The negative control for the delegation.
+
+    `set_preference()` now routes through `set_preferences()`. An
+    ungrouped setting must keep its exact previous payload -- a stray
+    extra key would be a behaviour change for every existing caller.
+    """
+    client = _Capturing()
+    asyncio.run(client.set_preference("openOnly", setting=True))
+
+    assert client.published == [("delta", '{"state":{"openOnly":true}}')]

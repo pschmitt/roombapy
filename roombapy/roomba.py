@@ -14,7 +14,7 @@ import inspect
 import logging
 import random
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, Self, cast
@@ -743,17 +743,76 @@ class RoombaClient:
         ).decode("utf-8")
         await self._publish("cmd", payload)
 
+    @staticmethod
+    def _coerce(setting: RobotPreference) -> RobotPreference | bool:
+        """Turn the strings "true"/"false" into booleans, case-insensitively.
+
+        Callers have passed str(True) here for years.
+        """
+        if isinstance(setting, str):
+            if setting.lower() == "true":
+                return True
+            if setting.lower() == "false":
+                return False
+        return setting
+
     async def set_preference(
         self, preference: str, setting: RobotPreference
     ) -> None:
-        """Set a preference on the Roomba."""
-        value: RobotPreference | bool = setting
-        if isinstance(setting, str):
-            if setting.lower() == "true":
-                value = True
-            elif setting.lower() == "false":
-                value = False
-        payload = orjson.dumps({"state": {preference: value}}).decode("utf-8")
+        """Set a single preference on the Roomba.
+
+        NOT EVERY PREFERENCE CAN BE SET ON ITS OWN. Some are read by one
+        firmware handler that needs its whole group present and ignores
+        the message otherwise -- see set_preferences(), which is the
+        right call for those.
+        """
+        await self.set_preferences({preference: setting})
+
+    async def set_preferences(
+        self, preferences: Mapping[str, RobotPreference]
+    ) -> None:
+        """Set several preferences in a SINGLE delta message.
+
+        WHY THIS EXISTS RATHER THAN CALLING set_preference() TWICE.
+        Several settings are grouped in the firmware: one handler reads
+        every key of the group, and the value reads only happen once all
+        of them have been found. A message carrying half a group takes
+        an early exit -- no error, no echo, no disconnect, nothing on
+        the wire at all. Sent one at a time, those settings do nothing.
+
+        MEASURED ON THE WIRE, not inferred. A field series on an i3
+        flipped and restored each key with every send confirmed: single
+        keys produced nothing at all -- no error, no echo, no
+        disconnect -- while the pair came back in 0.65 s. dorita980,
+        the oldest client for these robots, has never sent them any
+        other way and offers no single-key setter for them.
+
+        Firmware analysis found handlers that read both keys together
+        and resolve them to one three-state value (lewis:
+        `ctv_common_get_num_passes_flags`; ruby:
+        `ctv_common_get_pass_preference`). Those sit on the command
+        callback path rather than provably on the delta path, so they
+        show the grouping is real for these keys without proving it is
+        what rejects a half-written delta. The measurement is the
+        evidence; the handlers explain it.
+
+        The two known groups::
+
+            {"noAutoPasses": ..., "twoPass": ...}     cleaning passes
+            {"carpetBoost": ..., "vacHigh": ...}      suction mode
+
+        Both resolve to one three-state value, which is why half a group
+        has nothing to resolve. Others may exist; grouping is not
+        visible in the shadow, and these two were found by trying
+        combinations rather than by reading a specification.
+
+        Preferences that are NOT grouped -- `binPause` has its own
+        handler, for instance -- work either way, and set_preference()
+        stays the natural call for them.
+        """
+        payload = orjson.dumps(
+            {"state": {k: self._coerce(v) for k, v in preferences.items()}}
+        ).decode("utf-8")
         await self._publish("delta", payload)
 
     async def get_position(

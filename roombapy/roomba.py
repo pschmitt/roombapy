@@ -744,10 +744,15 @@ class RoombaClient:
         await self._publish("cmd", payload)
 
     @staticmethod
-    def _coerce(setting: RobotPreference) -> RobotPreference | bool:
+    def _coerce(setting: RobotPreference) -> RobotPreference:
         """Turn the strings "true"/"false" into booleans, case-insensitively.
 
         Callers have passed str(True) here for years.
+
+        The return type does NOT need `| bool`. `bool` is a subclass of
+        `int`, so it is already inside `RobotPreference`; spelling it
+        out reads as though it were not, which is the opposite of what
+        it does.
         """
         if isinstance(setting, str):
             if setting.lower() == "true":

@@ -2,7 +2,7 @@
 
 import asyncio
 
-from roombapy.roomba import RoombaClient, _decode_payload
+from roombapy.roomba import RobotPreference, RoombaClient, _decode_payload
 
 
 def test_skip_garbage() -> None:
@@ -107,3 +107,20 @@ def test_a_single_preference_still_sends_a_single_key() -> None:
     asyncio.run(client.set_preference("openOnly", setting=True))
 
     assert client.published == [("delta", '{"state":{"openOnly":true}}')]
+
+
+def test_a_boolean_setting_is_accepted_by_the_annotation() -> None:
+    """`RobotPreference` is `str | int | dict[str, int]`, with no `bool`.
+
+    A review flagged that as breaking type-checking for callers passing
+    True. It does not: `bool` is a subclass of `int`, so `True` is
+    already a valid `RobotPreference` and mypy --strict accepts it.
+
+    Pinned as a runtime check rather than argued in a comment, because
+    the observation is easy to make again and the answer is not obvious
+    from reading the alias.
+    """
+    assert issubclass(bool, int)
+
+    # And the alias really is the one under discussion.
+    assert "bool" not in str(RobotPreference)

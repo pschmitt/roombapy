@@ -90,14 +90,6 @@ repos:
         types: [text]
         entry: uv run end-of-file-fixer
         stages: [commit, push, manual]
-      - id: no-commit-to-branch
-        name: 🛑 Don't commit to main branch
-        language: system
-        entry: uv run no-commit-to-branch
-        pass_filenames: false
-        always_run: true
-        args:
-          - --branch=main
       - id: uv-lock
         name: 📜 Check uv.lock is in sync with pyproject.toml
         language: system

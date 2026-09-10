@@ -348,7 +348,10 @@ class ReportedState(TypedDict, total=False):
     hwDbgr: Any
     hwPartsRev: dict[str, Any]
     langs2: dict[str, Any]
-    lastDisconnect: dict[str, Any] | int
+    #: `4` on the one robot where a value was seen. The union this
+    #: carried before was a guess, like the four other types a real
+    #: dump corrected.
+    lastDisconnect: int
     #: NOT room or position telemetry, despite the name: a set of
     #: "which report categories are enabled" flags, all 1.
     #:

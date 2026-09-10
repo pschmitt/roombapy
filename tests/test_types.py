@@ -2,6 +2,7 @@
 
 import ast
 import pathlib
+import typing
 from typing import ClassVar
 
 import orjson
@@ -101,6 +102,18 @@ def test_missing_telemetry_block_is_not_an_error(
     assert "bbchg3" not in client.reported
 
 
+def _hints() -> dict[str, object]:
+    """Resolved annotations, not their `repr`.
+
+    `ReportedState.__annotations__` holds `ForwardRef` objects under
+    `from __future__ import annotations`, and their `repr` is not a
+    stable API -- Python 3.14 appends `owner=...`, which broke a test
+    that compared the string. `get_type_hints()` returns the real
+    objects and is what a consumer would use.
+    """
+    return typing.get_type_hints(ReportedState)
+
+
 class TestReportedStateCoversWhatRealRobotsSend:
     """`ReportedState` declared 37 keys; real robots send up to 69 each.
 
@@ -146,10 +159,10 @@ class TestReportedStateCoversWhatRealRobotsSend:
         union of dict/int/str, which no capture supports; the inner
         values are left open instead.
         """
-        annotation = str(ReportedState.__annotations__["netinfo"])
+        annotation = _hints()["netinfo"]
 
-        assert "dict" in annotation
-        assert "| int" not in annotation
+        assert typing.get_origin(annotation) is dict
+        assert typing.get_origin(annotation) is not typing.Union
 
     def test_the_two_schedule_shapes_are_both_declared(self) -> None:
         """Both schedule shapes are declared.
@@ -183,10 +196,10 @@ class TestReportedStateCoversWhatRealRobotsSend:
         real room transition. Typing it as anything richer would invite
         a consumer to read progress out of it.
         """
-        annotation = str(ReportedState.__annotations__["missionTelemetry"])
+        annotation = _hints()["missionTelemetry"]
 
-        assert "dict" in annotation
-        assert "int" in annotation
+        assert typing.get_origin(annotation) is dict
+        assert typing.get_args(annotation) == (str, int)
 
     def test_nothing_is_declared_twice(self) -> None:
         """No field is declared twice.
@@ -256,9 +269,12 @@ class TestNoTypeIsDeclaredWithoutEvidence:
 
     def test_the_evidenced_types_are_what_was_observed(self) -> None:
         """Each of these was read off a real robot, not inferred."""
+        hints = _hints()
         for field, expected in self.EVIDENCED.items():
-            annotation = str(ReportedState.__annotations__[field])
-            assert expected in annotation, f"{field}: {annotation}"
+            assert (
+                hints[field]
+                is {"int": int, "bool": bool, "str": str}[expected]
+            ), f"{field}: {hints[field]}"
 
     def test_the_three_corrected_fields_are_not_structures(self) -> None:
         """The specific mistake, pinned.
@@ -266,10 +282,9 @@ class TestNoTypeIsDeclaredWithoutEvidence:
         All three read like they hold something structured, and all
         three are plain ints.
         """
+        hints = _hints()
         for field in ("chrgLrPtrn", "deploymentState", "pmapSGen"):
-            annotation = str(ReportedState.__annotations__[field])
-            assert "dict" not in annotation
-            assert "str'" not in annotation.replace("'int'", "")
+            assert hints[field] is int, f"{field}: {hints[field]}"
 
     def test_the_nine_series_block_is_typed_from_its_dump(self) -> None:
         """Thirteen fields settled by one full 980 value dump.
@@ -278,18 +293,15 @@ class TestNoTypeIsDeclaredWithoutEvidence:
         reading as a number (`'32'`), and `langs` is a list of one-entry
         maps rather than a flat list of names.
         """
-        ann = ReportedState.__annotations__
+        hints = _hints()
 
-        assert "str" in str(ann["soundVer"])
-        assert "list" in str(ann["langs"])
-        assert "int" in str(ann["language"])
-        assert "dict" in str(ann["bbpanic"])
+        assert hints["soundVer"] is str
+        assert typing.get_origin(hints["langs"]) is list
+        assert hints["language"] is int
+        assert typing.get_origin(hints["bbpanic"]) is dict
 
     def test_unobserved_fields_are_open(self) -> None:
         """Sampled from the group with no value dump behind it."""
+        hints = _hints()
         for field in ("smartHome", "odoaMode", "sceneRecog", "hwDbgr"):
-            assert str(ReportedState.__annotations__[field]) in (
-                "typing.Any",
-                "<class 'typing.Any'>",
-                "ForwardRef('Any', module='roombapy.types')",
-            ), f"{field}: {ReportedState.__annotations__[field]}"
+            assert hints[field] is typing.Any, f"{field}: {hints[field]}"

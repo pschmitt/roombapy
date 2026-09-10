@@ -329,9 +329,10 @@ class ReportedState(TypedDict, total=False):
     # its shape being evidenced: diagnostics downloads list key names
     # only, and the one full value dump available here covers a single
     # family. Declaring a plausible type from a field's NAME is how this
-    # class already acquired three wrong ones -- `chrgLrPtrn` and
-    # `deploymentState` and `pmapSGen` were all guessed as structures or
-    # strings and are all ints. `Any` states what is actually known.
+    # class already acquired four wrong ones: `chrgLrPtrn`,
+    # `deploymentState`, and `pmapSGen` were all guessed as structures or
+    # strings and are all ints; `netinfo` was previously typed as a union.
+    # `Any` states what is actually known.
     # ------------------------------------------------------------------
     audio: dict[str, Any]
     batAuthEnable: Any

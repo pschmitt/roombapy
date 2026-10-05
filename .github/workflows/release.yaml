@@ -6,10 +6,10 @@ on:
       - '*'
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
     - uses: actions/checkout@v7
 
@@ -18,13 +18,36 @@ jobs:
       with:
         python-version: '3.13'
 
-    - name: Build and publish
-      env:
-        UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        uv build
-        uv publish
+    - name: Build
+      run: uv build
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # Trusted Publishing (OIDC) + PEP 740 attestations
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v7
 
     - name: Create GitHub release
       env:

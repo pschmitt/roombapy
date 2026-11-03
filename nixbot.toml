@@ -1,0 +1,2 @@
+# This flake has no packages: nixbot builds its development shell.
+attribute = "devShells.x86_64-linux"

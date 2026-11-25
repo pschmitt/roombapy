@@ -8,6 +8,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
+import aiomqtt
 import pytest
 import pytest_asyncio
 from roombapy.roomba import (
@@ -16,6 +17,7 @@ from roombapy.roomba import (
     RoombaConnectionError,
     RoombaError,
     TransportOptions,
+    _open_session,
 )
 
 from tests.conftest import ROOMBA_HOST, ROOMBA_PASSWORD, ROOMBA_USERNAME
@@ -241,3 +243,88 @@ async def test_failed_first_connect_reports_no_disconnect() -> None:
 
     assert disconnects == []
     assert states == []
+
+
+class _SilentBroker:
+    """A broker that accepts the connection and never answers CONNECT.
+
+    That is what a robot looks like while another client holds its one
+    local session.
+    """
+
+    def __init__(self) -> None:
+        self.port = 0
+        self.accepted = 0
+        self.connections: set[asyncio.StreamWriter] = set()
+
+    async def hold(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        self.accepted += 1
+        self.connections.add(writer)
+        try:
+            while await reader.read(1024):
+                pass
+        finally:
+            self.connections.discard(writer)
+            writer.close()
+
+    async def all_closed(self) -> bool:
+        """Whether every accepted connection is gone within a few seconds."""
+        try:
+            async with asyncio.timeout(3):
+                while self.connections:
+                    await asyncio.sleep(0.05)
+        except TimeoutError:
+            return False
+        return self.accepted > 0
+
+
+@pytest_asyncio.fixture
+async def silent_broker() -> AsyncIterator[_SilentBroker]:
+    """Serve a broker that never answers, on a free local port."""
+    broker = _SilentBroker()
+    server = await asyncio.start_server(broker.hold, "127.0.0.1", 0)
+    broker.port = server.sockets[0].getsockname()[1]
+    yield broker
+    server.close()
+    for writer in list(broker.connections):
+        writer.close()
+
+
+async def _enter(port: int, *, connack_wait: float) -> None:
+    async with _open_session(
+        aiomqtt.Client("127.0.0.1", port, timeout=connack_wait)
+    ):
+        pytest.fail("the silent broker answered CONNECT")
+
+
+@pytest.mark.asyncio
+async def test_a_connect_that_times_out_closes_its_socket(
+    silent_broker: _SilentBroker,
+) -> None:
+    """A timed-out CONNACK wait must not leave the socket open.
+
+    The robot keeps one local client. A socket left behind by a timed-out
+    attempt is that client, and every later attempt then times out too.
+    """
+    with pytest.raises(aiomqtt.MqttError, match="timed out"):
+        await _enter(silent_broker.port, connack_wait=0.5)
+
+    assert await silent_broker.all_closed()
+
+
+@pytest.mark.asyncio
+async def test_a_connect_the_caller_gives_up_on_closes_its_socket(
+    silent_broker: _SilentBroker,
+) -> None:
+    """A config flow bounding connect() must not leave the robot held.
+
+    The caller returns when it gives up; the attempt it abandoned is closed
+    as soon as aiomqtt's own timeout ends it.
+    """
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.3):
+            await _enter(silent_broker.port, connack_wait=1)
+
+    assert await silent_broker.all_closed()

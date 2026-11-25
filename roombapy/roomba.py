@@ -368,7 +368,8 @@ class RoombaClient:
         Against an unreachable host this takes around 18 seconds: three
         attempts, each waiting out a TCP connect. Cancellation is clean, so
         a caller that needs a tighter bound — a config flow, say — can wrap
-        this in ``asyncio.timeout`` and the client will tear itself down.
+        this in ``asyncio.timeout`` and the client will tear itself down,
+        including an attempt still waiting for the robot to answer.
         """
         if self._task is not None and not self._task.done():
             msg = (
@@ -454,14 +455,16 @@ class RoombaClient:
 
         while not self._closing:
             try:
-                async with aiomqtt.Client(
-                    hostname=self.address,
-                    port=self.port,
-                    identifier=self.blid,
-                    username=self.blid,
-                    password=self.password,
-                    tls_context=self._tls_context,
-                    tls_insecure=True,
+                async with _open_session(
+                    aiomqtt.Client(
+                        hostname=self.address,
+                        port=self.port,
+                        identifier=self.blid,
+                        username=self.blid,
+                        password=self.password,
+                        tls_context=self._tls_context,
+                        tls_insecure=True,
+                    )
                 ) as client:
                     self._client = client
                     await client.subscribe(self.topic)
@@ -1138,6 +1141,80 @@ class RoombaClient:
             # RoombaError, and arrives as an unhandled error instead.
             msg = f"Failed to send to Roomba at {self.address}: {err}"
             raise RoombaConnectionError(msg) from err
+
+
+# Connect attempts a caller stopped waiting for, until each is closed.
+_ABANDONED: set[asyncio.Future[Any]] = set()
+
+
+@contextlib.asynccontextmanager
+async def _open_session(
+    client: aiomqtt.Client,
+) -> AsyncIterator[aiomqtt.Client]:
+    """Enter ``client`` without leaving a socket behind when that fails.
+
+    aiomqtt does not close paho's socket when ``__aenter__`` fails: on its
+    own CONNACK timeout it raises with the socket still open, and a
+    cancellation leaves the connect running in an executor thread, which
+    opens the socket after the caller has gone. Nothing reads from that
+    socket again, yet paho keeps it alive, and if the CONNACK arrives late
+    the session stays up for good.
+
+    A robot accepts one local client at a time. Every abandoned attempt
+    therefore held the slot the next attempt needed: one slow answer, or a
+    config flow giving up, kept the robot locked out for at least a
+    keepalive period, and for good once a late CONNACK arrived.
+
+    A cancelled caller returns at once; the attempt it leaves runs on and
+    is closed when it finishes, which aiomqtt's own timeout bounds.
+    """
+    entering = asyncio.ensure_future(client.__aenter__())
+    try:
+        # wait(), not shield(): a cancelled caller must not cancel the
+        # attempt, and shield() would log the attempt's own timeout.
+        await asyncio.wait({entering})
+    except asyncio.CancelledError:
+        # The loop holds tasks weakly; keep the attempt alive until closed.
+        _ABANDONED.add(entering)
+        entering.add_done_callback(lambda done: _close_abandoned(client, done))
+        raise
+    try:
+        entering.result()
+    except BaseException:
+        _close_socket(client)
+        raise
+    try:
+        yield client
+    finally:
+        await client.__aexit__(None, None, None)
+
+
+def _close_abandoned(
+    client: aiomqtt.Client, entering: asyncio.Future[Any]
+) -> None:
+    """Close an attempt its caller stopped waiting for.
+
+    Its outcome is retrieved first: nobody else will, and asyncio would
+    otherwise log a timeout nobody asked about as never retrieved.
+    """
+    _ABANDONED.discard(entering)
+    if not entering.cancelled():
+        entering.exception()
+    _close_socket(client)
+
+
+def _close_socket(client: aiomqtt.Client) -> None:
+    """Close the socket of a client whose session will never be used.
+
+    Called once the enter has finished one way or the other. Reaching into
+    paho is the only way: aiomqtt offers no close for a client that never
+    entered, and its ``__aexit__`` waits for a DISCONNECT acknowledgement a
+    broker that never answered CONNACK will not send. ``_sock_close`` also
+    runs aiomqtt's socket-close hook, so the reader and the keepalive task
+    go with the socket.
+    """
+    with contextlib.suppress(Exception):
+        client._client._sock_close()  # noqa: SLF001
 
 
 def _check_region_scope(command: str, params: dict[str, Any] | None) -> None:

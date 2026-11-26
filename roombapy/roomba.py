@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import inspect
 import logging
+import math
 import random
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -79,6 +80,9 @@ _SHADOW_GRACE = 3.0
 _UNSUPPORTED_AFTER = 3
 
 MAX_CONNECTION_RETRIES = 3
+# How long to wait for the robot to acknowledge the subscription before
+# carrying on without its SUBACK. One that answers does so in milliseconds.
+SUBSCRIBE_ACK_TIMEOUT = 3.0
 RECONNECT_BACKOFF_MIN = 1.0
 RECONNECT_BACKOFF_MAX = 60.0
 # Without jitter every robot in a household comes back in lockstep after a
@@ -362,7 +366,8 @@ class RoombaClient:
     async def connect(self) -> None:
         """Establish a session, or raise.
 
-        Returns once subscribed. Losing the session afterwards is handled by
+        Returns once the session is open and its subscription sent (see
+        `_subscribe`). Losing the session afterwards is handled by
         the supervisor with backoff and does not surface here.
 
         Against an unreachable host this takes around 18 seconds: three
@@ -447,6 +452,34 @@ class RoombaClient:
     # supervisor
     # ------------------------------------------------------------------
 
+    async def _subscribe(self, client: aiomqtt.Client) -> None:
+        """Subscribe to the robot's topics without needing its SUBACK.
+
+        Some firmware never answers SUBSCRIBE: 3.5.x on a Roomba 671, 675
+        and 694 (#624). Those robots publish their state to a connected
+        client regardless, which is all the subscription is for here.
+        roombapy 1.x subscribed without waiting for the acknowledgement;
+        2.x waited, gave up after aiomqtt's 10 s with "Operation timed
+        out" and dropped a session that was working, then did the same on
+        every reconnect.
+
+        A robot that acknowledges does so within milliseconds, so the
+        wait costs time only on the ones that never will. Anything else
+        the subscription raises still ends the session. The bound is
+        asyncio's, not aiomqtt's, so a timeout is told apart without
+        reading an error message.
+        """
+        try:
+            async with asyncio.timeout(SUBSCRIBE_ACK_TIMEOUT):
+                await client.subscribe(self.topic, timeout=math.inf)
+        except TimeoutError:
+            self.log.debug(
+                "Roomba %s did not acknowledge the subscription within %.0fs; "
+                "carrying on without it",
+                self.address,
+                SUBSCRIBE_ACK_TIMEOUT,
+            )
+
     async def _supervise(self) -> None:
         """Hold a session open, reconnecting with backoff when it drops."""
         backoff = RECONNECT_BACKOFF_MIN
@@ -464,7 +497,7 @@ class RoombaClient:
                     tls_insecure=True,
                 ) as client:
                     self._client = client
-                    await client.subscribe(self.topic)
+                    await self._subscribe(client)
                     self._connected = True
                     self.client_error = None
                     self.auth_error = None

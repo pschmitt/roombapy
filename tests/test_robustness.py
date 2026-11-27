@@ -5,7 +5,9 @@ rather than by a report, and each failed before the corresponding fix.
 """
 
 import asyncio
+import ssl
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -241,3 +243,117 @@ async def test_failed_first_connect_reports_no_disconnect() -> None:
 
     assert disconnects == []
     assert states == []
+
+
+_CERTS = (
+    Path(__file__).resolve().parents[1]
+    / ".github/workflows/mosquitto/tls-certificates"
+)
+
+
+class _BrokerWithoutSuback:
+    """A robot that answers CONNECT and publishes, but never SUBACK.
+
+    That is firmware 3.5.x (Roomba 671, 675, 694, #624): CONNACK at once,
+    its state unasked, and silence on SUBSCRIBE.
+    """
+
+    STATE = b'{"state":{"reported":{"batPct":55}}}'
+
+    def __init__(self) -> None:
+        self.port = 0
+        self.subscribes = 0
+        self.connects = 0
+
+    @staticmethod
+    def _packet(first: int, body: bytes) -> bytes:
+        length, encoded = len(body), b""
+        while True:
+            byte, length = length % 128, length // 128
+            encoded += bytes([byte | (0x80 if length else 0)])
+            if not length:
+                return bytes([first]) + encoded + body
+
+    @staticmethod
+    async def _read_packet(reader: asyncio.StreamReader) -> int:
+        first = (await reader.readexactly(1))[0]
+        length, multiplier = 0, 1
+        while True:
+            byte = (await reader.readexactly(1))[0]
+            length += (byte & 0x7F) * multiplier
+            multiplier *= 128
+            if not byte & 0x80:
+                break
+        await reader.readexactly(length)
+        return first >> 4
+
+    async def serve(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        topic = b"$aws/things/robot/shadow/update"
+        try:
+            while True:
+                kind = await self._read_packet(reader)
+                if kind == 1:  # CONNECT
+                    self.connects += 1
+                    writer.write(b"\x20\x02\x00\x00")
+                    writer.write(
+                        self._packet(
+                            0x30,
+                            len(topic).to_bytes(2, "big") + topic + self.STATE,
+                        )
+                    )
+                elif kind == 8:  # SUBSCRIBE: no answer, as on the robot
+                    self.subscribes += 1
+                elif kind == 12:  # PINGREQ
+                    writer.write(b"\xd0\x00")
+                elif kind == 14:  # DISCONNECT
+                    break
+                await writer.drain()
+        except (asyncio.IncompleteReadError, ConnectionError):
+            pass
+        finally:
+            writer.close()
+
+
+@pytest_asyncio.fixture
+async def broker_without_suback() -> AsyncIterator[_BrokerWithoutSuback]:
+    """Serve one over TLS with the repository's test certificate."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(_CERTS / "test.crt", _CERTS / "test.key")
+    broker = _BrokerWithoutSuback()
+    server = await asyncio.start_server(
+        broker.serve, "127.0.0.1", 0, ssl=context
+    )
+    broker.port = server.sockets[0].getsockname()[1]
+    yield broker
+    server.close()
+    await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_a_robot_that_never_acknowledges_the_subscription_connects(
+    broker_without_suback: _BrokerWithoutSuback,
+) -> None:
+    """2.x waited for the SUBACK, timed out and dropped the session, forever.
+
+    The robot's state arrives unasked; the session has to stay for it.
+    """
+    client = RoombaClient(
+        "127.0.0.1",
+        "robot",
+        "secret",
+        transport=TransportOptions(port=broker_without_suback.port),
+    )
+    try:
+        async with asyncio.timeout(8):
+            await client.connect()
+            while "batPct" not in client.master_state.get("state", {}).get(
+                "reported", {}
+            ):
+                await asyncio.sleep(0.05)
+    finally:
+        await client.disconnect()
+
+    assert broker_without_suback.subscribes == 1
+    assert broker_without_suback.connects == 1
